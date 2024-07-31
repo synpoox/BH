@@ -2124,6 +2124,19 @@ void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, i
 		}
 	}
 
+	int nAwakener = ItemGetAwakener(pItem);
+	BOOL isAwakened = StatIsAwakened(nStat, nAwakener);
+	if (isAwakened) {
+		// Add an orange star to awakened mods
+		int	aLen = wcslen(wOut);
+		int leftSpace = 128 - aLen > 0 ? 128 - aLen : 0;
+		if (leftSpace) {
+			swprintf_s(wOut + aLen, leftSpace,
+				L"%s\*%s",
+				GetColorCode(TextColor::Orange).c_str(),
+				GetColorCode(TextColor::Blue).c_str());
+		}
+	}
 
 	TextColor statColor = TextColor::Blue;
 	switch (pItem->pItemData->dwQuality) {
@@ -2775,6 +2788,37 @@ BOOL StatIsCorrupted(int nStat, int nCorruptor)
 			continue;
 		}
 		else if (CorruptionMods[nCorruptor][j] == nStat) {
+			return true;
+		}
+	}
+	return false;
+}
+
+int ItemGetAwakener(UnitAny* pItem)
+{
+	int awakener = -1;
+
+	for (int i = 0; i < pItem->pStats->wSetStatCount; i++) {
+		Stat* pStat = &pItem->pStats->pSetStat[i];
+		if (pStat->wStatIndex == STAT_AWAKENED) {
+			awakener = pStat->dwStatValue;
+			break;
+		}
+	}
+
+	return awakener;
+}
+
+BOOL StatIsAwakened(int nStat, int nAwakener)
+{
+	if (nAwakener < 0 || nAwakener > NUM_AWAKENS)
+		return false;
+
+	for (int j = 0; j < 6; j++) {
+		if (AwakenMods[nAwakener][j] < 0) {
+			continue;
+		}
+		else if (AwakenMods[nAwakener][j] == nStat) {
 			return true;
 		}
 	}

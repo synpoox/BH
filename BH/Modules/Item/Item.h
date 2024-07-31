@@ -113,6 +113,8 @@ void __stdcall GetItemFromPacket_NewGround(px9c* packet);
 void __stdcall GetItemFromPacket_OldGround(px9c* packet);
 int ItemGetCorruptor(UnitAny* pItem);
 BOOL StatIsCorrupted(int nStat, int nCorruptor);
+int ItemGetAwakener(UnitAny* pItem);
+BOOL StatIsAwakened(int nStat, int nAwakener);
 
 // reset all rule lookup caches
 void ResetCaches();
