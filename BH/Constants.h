@@ -1716,8 +1716,8 @@ const int AwakenMods[][8] = {
 	{STAT_IGNORETARGETSDEFENSE, -1, -1, -1, -1, -1, -1, -1}, // 74
 	{STAT_CLASSSKILLS, -1, -1, -1, -1, -1, -1, -1}, // 75
 	{STAT_STRENGTH, STAT_DEXTERITY, STAT_VITALITY, STAT_ENERGY, STAT_FIRERESIST, STAT_COLDRESIST, STAT_LIGHTNINGRESIST, STAT_POISONRESIST}, // All res, All stats 76
-	{STAT_HP, STAT_ENHANCEDLIFE, -1, -1, -1, -1, -1, -1}, // 77
-	{STAT_MANA, STAT_ENHANCEDMANA, -1, -1, -1, -1, -1, -1}, // 78
+	{STAT_MAXHP, STAT_ENHANCEDLIFE, -1, -1, -1, -1, -1, -1}, // 77
+	{STAT_MAXMANA, STAT_ENHANCEDMANA, -1, -1, -1, -1, -1, -1}, // 78
 	{STAT_ENHANCEDLIFE, STAT_ENHANCEDMANA, -1, -1, -1, -1, -1, -1}, // 79
 	{STAT_LIFEAFTEREACHKILL, STAT_MANAAFTEREACHKILL, -1, -1, -1, -1, -1, -1}, // 80
 	{STAT_LIFELEECH, STAT_MANALEECH, -1, -1, -1, -1, -1, -1}, // 81
@@ -1727,7 +1727,7 @@ const int AwakenMods[][8] = {
 	{STAT_LIGHTNINGABSORBPERCENT, -1, -1, -1, -1, -1, -1, -1}, // 85
 	{STAT_COLDABSORBPERCENT, -1, -1, -1, -1, -1, -1, -1}, // 86
 	{STAT_ADDEXPERIENCE, -1, -1, -1, -1, -1, -1, -1}, // 87
-	{STAT_SKILLONSTRIKING, -1, -1, -1, -1, -1, -1, -1}, // 88
+	{STAT_SKILLONHIT, -1, -1, -1, -1, -1, -1, -1}, // 88
 	{STAT_SKILLONCAST, -1, -1, -1, -1, -1, -1, -1}, // 89
 	{STAT_AURA, -1, -1, -1, -1, -1, -1, -1}, // 90
 };
