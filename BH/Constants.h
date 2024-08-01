@@ -1727,7 +1727,7 @@ const int AwakenMods[][8] = {
 	{STAT_LIGHTNINGABSORBPERCENT, -1, -1, -1, -1, -1, -1, -1}, // 85
 	{STAT_COLDABSORBPERCENT, -1, -1, -1, -1, -1, -1, -1}, // 86
 	{STAT_ADDEXPERIENCE, -1, -1, -1, -1, -1, -1, -1}, // 87
-	{STAT_SKILLONSTRIKING, -1, -1, -1, -1, -1, -1, -1}, // 88
+	{STAT_SKILLONHIT, -1, -1, -1, -1, -1, -1, -1}, // 88
 	{STAT_SKILLONCAST, -1, -1, -1, -1, -1, -1, -1}, // 89
 	{STAT_AURA, -1, -1, -1, -1, -1, -1, -1}, // 90
 };
