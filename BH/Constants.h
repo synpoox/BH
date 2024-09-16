@@ -1647,7 +1647,7 @@ const int AwakenMods[][8] = {
 	{STAT_MAGICFIND, -1, -1, -1, -1, -1, -1, -1}, // 5
 	{STAT_LIFEAFTEREACHKILL, -1, -1, -1, -1, -1, -1, -1}, // 6
 	{STAT_MANAAFTEREACHKILL, -1, -1, -1, -1, -1, -1, -1}, // 7
-	{STAT_MAXMANA, -1, -1, -1, -1, -1, -1, -1}, // 8
+	{STAT_ENHANCEDMINIMUMDAMAGE, STAT_PASSIVEPHYSRESREDUC, -1, -1, -1, -1, -1, -1}, // 8
 	{STAT_FASTERHITRECOVERY, -1, -1, -1, -1, -1, -1, -1}, // 9
 	{STAT_PSENEMYFIRERESREDUC, -1, -1, -1, -1, -1, -1, -1}, // 10
 	{STAT_PSENEMYLIGHTNRESREDUC, -1, -1, -1, -1, -1, -1, -1}, // 11
@@ -1713,7 +1713,7 @@ const int AwakenMods[][8] = {
 	{STAT_TOBLOCK, STAT_FASTERBLOCK, -1, -1, -1, -1, -1, -1}, // 71
 	{STAT_MINIMUMDAMAGE, -1, -1, -1, -1, -1, -1, -1}, // 72
 	{STAT_MAXIMUMDAMAGE, -1, -1, -1, -1, -1, -1, -1}, // 73
-	{STAT_IGNORETARGETSDEFENSE, -1, -1, -1, -1, -1, -1, -1}, // 74
+	{STAT_PASSIVEMAGICDMGMASTERY, -1, -1, -1, -1, -1, -1, -1}, // 74
 	{STAT_CLASSSKILLS, -1, -1, -1, -1, -1, -1, -1}, // 75
 	{STAT_STRENGTH, STAT_DEXTERITY, STAT_VITALITY, STAT_ENERGY, STAT_FIRERESIST, STAT_COLDRESIST, STAT_LIGHTNINGRESIST, STAT_POISONRESIST}, // All res, All stats 76
 	{STAT_MAXHP, STAT_ENHANCEDLIFE, -1, -1, -1, -1, -1, -1}, // 77
