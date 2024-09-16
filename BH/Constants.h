@@ -1698,7 +1698,7 @@ const int AwakenMods[][8] = {
 	{STAT_MANALEECH, -1, -1, -1, -1, -1, -1, -1}, // 56
 	{STAT_ENHANCEDDEFENSE, STAT_MAGICFIND, -1, -1, -1, -1, -1, -1}, // 57
 	{STAT_SKILLONEQUIP, -1, -1, -1, -1, -1, -1, -1}, // 58
-	{STAT_MAXHP, -1, -1, -1, -1, -1, -1, -1}, // 59
+	{STAT_INCSPLASHRADIUS, -1, -1, -1, -1, -1, -1, -1}, // 59
 	{STAT_ENHANCEDLIFE, STAT_LIFEAFTEREACHKILL, -1, -1, -1, -1, -1, -1}, // 60
 	{STAT_ENHANCEDMANA, STAT_MANAAFTEREACHKILL, -1, -1, -1, -1, -1, -1}, // 61
 	{STAT_CURSE_EFFECTIVENESS, -1, -1, -1, -1, -1, -1, -1}, // 62
