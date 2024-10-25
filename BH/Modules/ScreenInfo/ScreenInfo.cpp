@@ -196,7 +196,7 @@ void ScreenInfo::OnDraw() {
 		}
 	}*/
 
-	if (App.game.experienceMeter.toggle.isEnabled) {
+	if (App.game.experienceMeter.value && D2CLIENT_GetUIState(UI_HELP_MENU) == 0) {
 		drawExperienceInfo();
 	}
 }
@@ -333,6 +333,11 @@ void ScreenInfo::OnAutomapDraw() {
 			Texthook::Draw(*p_D2CLIENT_ScreenSizeX - 10, y, Right, 0, Gold, "%s", key.c_str());
 			y += 16;
 		}
+	}
+
+	if (pUnit->pPlayerData && pUnit->pPlayerData->nItemAllocation != 0)
+	{
+		Texthook::Draw(*p_D2CLIENT_ScreenSizeX - 10, y, Right, 0, Gold, "%s", "Allocated Loot");
 	}
 
 	delete[] level;

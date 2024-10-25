@@ -853,12 +853,17 @@ struct ConditionEvalNode {
 	}
 };
 
+struct ReplaceContext;
+struct ReplacementValue;
+
 struct Rule
 {
 	vector<Condition*> conditions;
 	Action             action;
 	size_t root;
 	vector<ConditionEvalNode> nodes;
+	vector<ReplacementValue> name;
+	vector<ReplacementValue> description;
 
 	Rule(vector<Condition*>& inputConditions,
 		string* str);
@@ -874,6 +879,8 @@ struct Rule
 		return EvaluateTree(uInfo);
 	}
 
+	string ApplyName(ReplaceContext& ctx);
+	string ApplyDescription(ReplaceContext& ctx);
 	bool EvaluateTree(UnitItemInfo* uInfo);
 private:
 	bool Convert();
@@ -921,6 +928,7 @@ extern vector<Rule*>                RuleList;
 extern vector<Rule*>                MapRuleList;
 extern vector<Rule*>                IgnoreRuleList;
 extern vector<pair<string, string>> rules;
+extern vector<pair<string, string>> aliases;
 extern ItemDescLookupCache          item_desc_cache;
 extern ItemNameLookupCache          item_name_cache;
 extern MapActionLookupCache         map_action_cache;
@@ -948,11 +956,6 @@ void GetItemName(UnitItemInfo* uInfo,
 void TrimItemText(UnitItemInfo* uInfo,
 	string& name,
 	BOOL bLimit);
-void SubstituteNameVariables(UnitItemInfo* uInfo,
-	string& name,
-	const string& action_name,
-	BOOL          bLimit);
-void ReplaceStatSkillVars(UnitItemInfo* uInfo, string& name);
 string NameVarSockets(UnitItemInfo* uInfo);
 string NameVarRuneNum(UnitItemInfo* uInfo);
 string NameVarRuneName(UnitItemInfo* uInfo);

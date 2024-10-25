@@ -198,6 +198,7 @@ VARPTR(D2CLIENT, GoldDialogAmount, DWORD, 0x11BBB0, 0x11D568)
 
 VARPTR(D2CLIENT, NPCMenu, NPCMenu*, 0xF3BA0, 0xF1A90)
 VARPTR(D2CLIENT, NPCMenuAmount, DWORD, 0xF42F0, 0xF21E0)
+VARPTR(D2CLIENT, GoldDialog, NPCDialog*, 0xFAD60)
 
 VARPTR(D2CLIENT, TradeLayout, InventoryLayout*, 0x10B288, 0x101598)
 VARPTR(D2CLIENT, StashLayout, InventoryLayout*, 0x10B2D0, 0x1015E0)
@@ -603,6 +604,7 @@ VARPTR(D2WIN, FocusedControl, Control*, 0x214B0, 0x8DB44) // unused, but we ough
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 //FUNCPTR(D2GAME, Rand, DWORD __fastcall, (DWORD* seed), 0x1160)
+FUNCPTR(D2GAME, CalcOpenWoundsDamage, int __fastcall, (int* pLevelThresholds, int nLevel), 0xAC940);
 
 FUNCPTR(D2MCPCLIENT, ParseGameListPacket, VOID __fastcall, (BYTE* pPacket), 0x6E30, 0x6640)
 

@@ -36,6 +36,9 @@ namespace BH {
 	extern "C" __declspec(dllexport) void Initialize();
 	extern bool Shutdown();
 	extern bool ReloadConfig();
+	
+	void LoadLootFilter();
+	void CheckForD2GL();
 };
 
 struct BHApp {
@@ -76,28 +79,25 @@ struct BHApp {
 	} bnet;
 
 	struct {
-		SettingsKey reloadConfig = { 0x60, 0x60 };  // VK_NUMPAD0
-		SettingsKey reloadConfigCtrl = { 0x52, 0x52 };  // VK_R
-		SettingsToggle statsOnRight = { {}, {0, false} };
-		SettingsToggle devAura = { {}, {0, true} };
-		SettingsToggle maxLevelAura = { {}, {0, true} };
-		SettingsToggle rathmaAura = { {}, {0, true} };
-		SettingsToggle dcloneAura = { {}, {0, true} };
-		SettingsToggle pvpAura = { {}, {0, true} };
+		//SettingsKey reloadConfig = { 0x60, 0x60 };  // VK_NUMPAD0
+		//SettingsKey reloadConfigCtrl = { 0x52, 0x52 };  // VK_R
+		SettingsBool statsOnRight = { false, false };
 	} general;
 
 
 	struct {
-		SettingsInt filterLevel = { 1, 1, 0, 9 };
-		SettingsInt lastFilterLevel = { 0, 0, 0, 9 };
+		SettingsInt filterLevel = { 1, 1, 0, 12 };
+		SettingsInt lastFilterLevel = { 0, 0, 0, 12 };
 		SettingsKey filterLevelIncrease = { 0, 0 };
 		SettingsKey filterLevelDecrease = { 0, 0 };
 		SettingsKey filterLevelPrevious = { 0, 0 };
-		SettingsToggle advancedItemDisplay = { {}, {0, true} };
-		SettingsToggle showIlvl = { {}, {0, true} };
-		SettingsToggle detailedNotifications = { {}, {0, true} };
+		SettingsBool enableFilter = { true, true };
+		SettingsBool showIlvl = { false, false };
+		SettingsInt detailedNotifications = { 1, 1, 0, 2 };	// 0: Off, 1: On, 2: Only "new"
 		SettingsToggle allowUnknownItems = { {}, {0, false} };
-		SettingsToggle alwaysShowStatRanges = { {}, {0, true} };
+		SettingsInt showStatRangesPrimary = { 0, 0, 0x08, 0xE0 };
+		SettingsInt showStatRangesSecondary = { 0, 0, 0x08, 0xE0 };
+		SettingsBool alwaysShowStatRanges = { false, false };
 		SettingsAssoc classSkillsList = {}; // TODO??
 		SettingsAssoc tabSkillsList = {};  // TODO??
 	} lootfilter;
@@ -116,18 +116,8 @@ struct BHApp {
 	} legacy;
 
 	struct {
-		SettingsKey characterStats = { 0x38, 0x38 };  // VK_8
-		SettingsKey showPlayersGear = { 0x30, 0x30 };  // VK_0
-		SettingsKey resyncHotkey = { 0x39, 0x39 };  // VK_9
-		SettingsToggle experienceMeter = { {}, {0x67, false} };  // VK_NUMPAD7
-		SettingsToggle alwaysShowItems = { {}, {0, false} };
-		SettingsToggle buffTimers = { {}, {0, false} };
-		SettingsToggle quickCast = { {}, {0, false} };
-		SettingsToggle skillBar = { {}, {0, false} };
-		SettingsToggle skillBarDisable = { {}, {0, false} };
-		SettingsToggle screenshake = { {}, {0, true} };
-		SettingsToggle dpsCounter = { {}, {0, false} };
-		SettingsToggle beltStatus = { {}, {0, true} };
+		SettingsBool experienceMeter = { false, false };
+		SettingsBool alwaysShowItems = { false, false };
 	} game;
 
 	struct {
@@ -168,7 +158,45 @@ struct BHApp {
 		};
 	} stash;
 
+	struct
+	{
+		SettingsBool usingD2GL = { false, false };
+		SettingsBool usingHDText = { false, false };
+	} d2gl;
+
 	std::vector<Toggle*> hotkeyToggles;
 };
 
 extern BHApp App;
+
+typedef enum BHConfigId {
+	BH_CONFIG_EXPERIENCEMETER,
+	BH_CONFIG_ADVANCEDSTATS,
+	BH_CONFIG_RELOAD,
+	BH_CONFIG_LOOTFILTER,
+	BH_CONFIG_FILTERLEVEL,
+	BH_CONFIG_NUMFILTERLEVELS,
+	BH_CONFIG_LOOTNOTIFY,
+	BH_CONFIG_SHOWITEMLEVEL,
+	BH_CONFIG_ALWAYSSHOWSTATRANGE,
+	BH_CONFIG_ALWAYSSHOWITEMS,
+	BH_CONFIG_INCREASEFILTER,
+	BH_CONFIG_DECREASEFILTER,
+	BH_CONFIG_RESTOREFILTER,
+	BH_CONFIG_SHOWSTATRANGEPRIMARY,
+	BH_CONFIG_SHOWSTATRANGESECONDARY,
+	BH_CONFIG_USINGHDTEXT,
+} BHConfigId;
+
+typedef enum D2GLConfigId
+{
+	D2GL_CONFIG_VSYNC,
+	D2GL_CONFIG_CURSOR_UNLOCKED,
+	D2GL_CONFIG_HD_CURSOR,
+	D2GL_CONFIG_HD_TEXT,
+	D2GL_CONFIG_MOTION_PREDICTION,
+	D2GL_CONFIG_MINI_MAP,
+	D2GL_CONFIG_SHOW_ITEM_QUANTITY,
+	D2GL_CONFIG_SHOW_MONSTER_RES,
+	D2GL_CONFIG_SHOW_FPS,
+} D2GLConfigId;

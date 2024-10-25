@@ -151,15 +151,7 @@ void Item::OnLoad() {
 	itemPropertyStringDamagePatch->Install();
 	itemPropertyStringPatch->Install();
 
-	if (App.legacy.showEthereal.toggle.isEnabled ||
-		App.legacy.showSockets.toggle.isEnabled ||
-		App.lootfilter.showIlvl.toggle.isEnabled ||
-		App.legacy.colorMod.toggle.isEnabled ||
-		App.legacy.showRuneNumbers.toggle.isEnabled ||
-		App.legacy.altItemStyle.toggle.isEnabled ||
-		App.legacy.shortenItemNames.toggle.isEnabled ||
-		App.lootfilter.advancedItemDisplay.toggle.isEnabled)
-		itemNamePatch->Install();
+	itemNamePatch->Install();
 
 	DrawSettings();
 }
@@ -630,6 +622,7 @@ void Item::LoadConfig() {
 }
 
 void Item::DrawSettings() {
+	/*
 	Drawing::Texthook* colored_text;
 	settingsTab = new UITab("Item", BH::settingsUI);
 	unsigned int x = 8;
@@ -683,8 +676,8 @@ void Item::DrawSettings() {
 	new Drawing::Texthook(settingsTab, x, (y), "Loot Filter");
 
 	y += 15;
-	new Checkhook(settingsTab, x, y, &App.lootfilter.advancedItemDisplay.toggle.isEnabled, "Enable Loot Filter");
-	new Keyhook(settingsTab, GameSettings::KeyHookOffset, y + 2, &App.lootfilter.advancedItemDisplay.toggle.hotkey, "");
+	new Checkhook(settingsTab, x, y, &App.lootfilter.enableFilter.toggle.isEnabled, "Enable Loot Filter");
+	new Keyhook(settingsTab, GameSettings::KeyHookOffset, y + 2, &App.lootfilter.enableFilter.toggle.hotkey, "");
 	y += 15;
 
 	new Checkhook(settingsTab, x, y, &App.legacy.dropNotifications.toggle.isEnabled, "Drop Notifications");
@@ -728,6 +721,7 @@ void Item::DrawSettings() {
 	}
 
 	new Combohook(settingsTab, 120, y, 200, &App.lootfilter.filterLevel.uValue, ItemFilterNames);
+	*/
 }
 
 void Item::ReplaceItemFilters(vector<string> itemFilterNames) {
@@ -803,7 +797,7 @@ void Item::OnLoop() {
 	if (!D2CLIENT_GetUIState(0x01))
 		viewingUnit = NULL;
 
-	if (App.lootfilter.advancedItemDisplay.toggle.isEnabled) {
+	if (App.lootfilter.enableFilter.value) {
 		ItemDisplay::InitializeItemRules();
 	}
 
@@ -820,31 +814,32 @@ void Item::OnLoop() {
 }
 
 void Item::OnKey(bool up, BYTE key, LPARAM lParam, bool* block) {
-	if (key == App.lootfilter.filterLevelIncrease.hotkey) {
-		*block = true;
-		if (!up && D2CLIENT_GetPlayerUnit() && App.lootfilter.filterLevel.uValue < ItemFilterNames.size() - 1)
-			ChangeFilterLevels(App.lootfilter.filterLevel.uValue + 1);
-		return;
-	}
-	if (key == App.lootfilter.filterLevelDecrease.hotkey) {
-		*block = true;
-		if (!up && D2CLIENT_GetPlayerUnit() && App.lootfilter.filterLevel.uValue > 0)
-			ChangeFilterLevels(App.lootfilter.filterLevel.uValue - 1);
-		return;
-	}
-	if (key == App.lootfilter.filterLevelPrevious.hotkey) {
-		*block = true;
-		if (!up && D2CLIENT_GetPlayerUnit() &&
-			App.lootfilter.lastFilterLevel.uValue < ItemFilterNames.size()) {
-			ChangeFilterLevels(App.lootfilter.lastFilterLevel.uValue);
-		}
-		return;
-	}
+	//if (key == App.lootfilter.filterLevelIncrease.hotkey) {
+	//	*block = true;
+	//	if (!up && D2CLIENT_GetPlayerUnit() && App.lootfilter.filterLevel.uValue < ItemFilterNames.size() - 1)
+	//		ChangeFilterLevels(App.lootfilter.filterLevel.uValue + 1);
+	//	return;
+	//}
+	//if (key == App.lootfilter.filterLevelDecrease.hotkey) {
+	//	*block = true;
+	//	if (!up && D2CLIENT_GetPlayerUnit() && App.lootfilter.filterLevel.uValue > 0)
+	//		ChangeFilterLevels(App.lootfilter.filterLevel.uValue - 1);
+	//	return;
+	//}
+	//if (key == App.lootfilter.filterLevelPrevious.hotkey) {
+	//	*block = true;
+	//	if (!up && D2CLIENT_GetPlayerUnit() &&
+	//		App.lootfilter.lastFilterLevel.uValue < ItemFilterNames.size()) {
+	//		ChangeFilterLevels(App.lootfilter.lastFilterLevel.uValue);
+	//	}
+	//	return;
+	//}
 	bool ctrlState = ((GetKeyState(VK_LCONTROL) & 0x80) || (GetKeyState(VK_RCONTROL) & 0x80));
 	if (ctrlState && key >= VK_NUMPAD0 && key <= VK_NUMPAD9) {
 		*block = true;
 		unsigned int targetLevel = key - 0x60;
-		if (!up && D2CLIENT_GetPlayerUnit() && targetLevel < ItemFilterNames.size())
+		if (!up && D2CLIENT_GetPlayerUnit() &&
+			targetLevel < ItemFilterNames.size() && targetLevel != App.lootfilter.filterLevel.value)
 			ChangeFilterLevels(targetLevel);
 		return;
 	}
@@ -905,7 +900,7 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 	string itemName = szName;
 	char* code = D2COMMON_GetItemText(pItem->dwTxtFileNo)->szCode;
 
-	if (App.lootfilter.advancedItemDisplay.toggle.isEnabled) {
+	if (App.lootfilter.enableFilter.value) {
 		UnitItemInfo uInfo;
 		if (!CreateUnitItemInfo(&uInfo, pItem)) {
 			GetItemName(&uInfo, itemName);
@@ -916,6 +911,21 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 	}
 	else {
 		OrigGetItemName(pItem, itemName, code);
+	}
+
+	bool bAllocated = pItem->pItemData && pItem->pItemData->dwFlags & ITEMFLAG_ALLOCED;
+
+	if (bAllocated)
+	{
+		if (!App.d2gl.usingD2GL.value && !App.d2gl.usingHDText.value)
+		{
+			itemName += "\nÿc1(Allocated)";
+		}
+		else
+		{
+			// Half transparency
+			itemName = "\xFF" "c\x42" + itemName;
+		}
 	}
 
 	// Some common color codes for text strings (see TextColor enum):
@@ -930,6 +940,14 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 	// ÿc7 (tan)
 	// ÿc8 (orange)
 	// ÿc9 (yellow)
+
+	// Pre-trim "ending" color code that would otherwise be split into a partial code with
+	// the following conversion
+	int lastColorPos = itemName.rfind("ÿc");
+	if (lastColorPos != string::npos && lastColorPos > nameSize - 6)
+	{
+		itemName.resize(lastColorPos);
+	}
 
 	// The game adds the item color code _after_ this ItemNamePatch intercept, so we need to
 	// reduce the total allowed size to account for this
@@ -979,7 +997,7 @@ void __stdcall GetItemFromPacket_OldGround(px9c* pPacket)
 
 void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 {
-	if (App.lootfilter.advancedItemDisplay.toggle.isEnabled) {
+	if (App.lootfilter.enableFilter.value) {
 		bool showOnMap = false;
 		auto color = UNDEFINED_COLOR;
 
@@ -1001,7 +1019,8 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 			}
 		}
 		//PrintText(1, "Item on ground: %s, %s, %s, %X", item.name.c_str(), item.code, item.attrs->category.c_str(), item.attrs->flags);
-		if (showOnMap && !App.lootfilter.detailedNotifications.toggle.isEnabled) {
+		if (showOnMap && App.lootfilter.detailedNotifications.value == 0) {
+			/*
 			if (color == UNDEFINED_COLOR) {
 				color = ItemColorFromQuality(uInfo->item->pItemData->dwQuality);
 			}
@@ -1023,6 +1042,7 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 					App.legacy.verboseNotifications.toggle.isEnabled ? " \377c5close" : ""
 				);
 			}
+			*/
 		}
 		else if (!showOnMap) {
 			for (vector<Rule*>::iterator it = RuleList.begin(); it != RuleList.end(); it++) {
@@ -1039,7 +1059,7 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 
 void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 {
-	bool displayItemLevel = App.lootfilter.showIlvl.toggle.isEnabled;
+	bool displayItemLevel = App.lootfilter.showIlvl.value;
 	if (App.legacy.shortenItemNames.toggle.isEnabled)
 	{
 		// We will also strip ilvls from these items
@@ -1369,7 +1389,7 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 	int alvlLen = wcslen(alvlString);
 	int ilvlLen = wcslen(ilvlString);
 
-	if (App.lootfilter.advancedItemDisplay.toggle.isEnabled)
+	if (App.lootfilter.enableFilter.value)
 	{
 		if (lastItem == nullptr)
 		{
@@ -1867,7 +1887,7 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 			}
 
 			// Item Level & Affix Level
-			if (App.lootfilter.showIlvl.toggle.isEnabled && ShouldShowIlvl(&uInfo))
+			if (App.lootfilter.showIlvl.value && ShouldShowIlvl(&uInfo))
 			{
 				if (ilvl != alvl && (quality == ITEM_QUALITY_MAGIC || quality == ITEM_QUALITY_RARE || quality == ITEM_QUALITY_CRAFT))
 				{
@@ -1892,16 +1912,18 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 				auto chars_written = MultiByteToWideChar(CODE_PAGE, MB_PRECOMPOSED, desc.c_str(), -1, wDesc, MAX_ITEM_TEXT_SIZE);
 
 				int aLen = wcslen(wTxt);
-				swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen,
-					L"%s%s\n",
-					(chars_written > 0) ? wDesc : L"\377c1Item Description is too long.",
-					GetColorCode(TextColor::White).c_str()
-				);
+				if (aLen < ITEM_TEXT_SIZE_LIMIT) {
+					swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen,
+						L"%s%s\n",
+						(chars_written > 0) ? wDesc : L"\377c1Item Description is too long.",
+						GetColorCode(TextColor::White).c_str()
+					);
+				}
 			}
 		}
 	}
 
-	if (!(App.lootfilter.alwaysShowStatRanges.toggle.isEnabled ||
+	if (!(App.lootfilter.alwaysShowStatRanges.value ||
 		GetKeyState(VK_CONTROL) & 0x8000) ||
 		pItem == nullptr ||
 		pItem->dwType != UNIT_ITEM) {
@@ -1946,17 +1968,21 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 		//}
 	}
 
-	if (App.lootfilter.showIlvl.toggle.isEnabled && ShouldShowIlvl(&uInfo))
+	if (App.lootfilter.showIlvl.value && ShouldShowIlvl(&uInfo))
 	{
 		// Add alvl
 		if (ilvl != alvl && (quality == ITEM_QUALITY_MAGIC || quality == ITEM_QUALITY_RARE || quality == ITEM_QUALITY_CRAFT)) {
 			int aLen = wcslen(wTxt);
-			swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen, alvlString);
+			if (aLen < ITEM_TEXT_SIZE_LIMIT && alvlLen < ITEM_TEXT_SIZE_LIMIT - aLen) {
+				swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen, alvlString);
+			}
 		}
 
 		// Add ilvl
 		int aLen = wcslen(wTxt);
-		swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen, ilvlString);
+		if (aLen < ITEM_TEXT_SIZE_LIMIT && ilvlLen < ITEM_TEXT_SIZE_LIMIT - aLen) {
+			swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen, ilvlString);
+		}
 	}
 }
 
@@ -2101,17 +2127,23 @@ BOOL __stdcall Item::OnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStat
 	return TRUE;
 }
 
-void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam) {
-	if (!(App.lootfilter.alwaysShowStatRanges.toggle.isEnabled || GetKeyState(VK_CONTROL) & 0x8000) || pItem == nullptr || pItem->dwType != UNIT_ITEM) {
-		return;
+void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam)
+{
+	int nCorruptor = ItemGetCorruptor(pItem, STAT_UNUSED205);
+	BOOL isCorrupted = StatIsCorrupted(nStat, nCorruptor);
+	if (isCorrupted) {
+		int	aLen = wcslen(wOut);
+		int leftSpace = 128 - aLen > 0 ? 128 - aLen : 0;
+		if (leftSpace) {
+			swprintf_s(wOut + aLen, leftSpace,
+				L"%s\*%s",
+				GetColorCode(TextColor::Gold).c_str(),
+				GetColorCode(TextColor::Blue).c_str());
+		}
 	}
 
-	ItemsTxtStat* stat = nullptr;
-	ItemsTxtStat* all_stat = nullptr; // Stat for common modifer like all-res, all-stats
-	ItemsTxtStat* max_elem_stat = nullptr; // Stat for ranged min/max stats
-
-	int nCorruptor = ItemGetCorruptor(pItem);
-	BOOL isCorrupted = StatIsCorrupted(nStat, nCorruptor);
+	nCorruptor = ItemGetCorruptor(pItem, STAT_CORRUPTED);
+	isCorrupted = StatIsCorrupted(nStat, nCorruptor);
 	if (isCorrupted) {
 		// Add a red star to corruption mods
 		int	aLen = wcslen(wOut);
@@ -2137,6 +2169,17 @@ void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, i
 				GetColorCode(TextColor::Blue).c_str());
 		}
 	}
+	if (!(App.lootfilter.alwaysShowStatRanges.value ||
+		GetKeyState(App.lootfilter.showStatRangesPrimary.value) & 0x8000 ||
+		GetKeyState(App.lootfilter.showStatRangesSecondary.value) & 0x8000) ||
+		pItem == nullptr || pItem->dwType != UNIT_ITEM)
+	{
+		return;
+	}
+
+	ItemsTxtStat* stat = nullptr;
+	ItemsTxtStat* all_stat = nullptr; // Stat for common modifer like all-res, all-stats
+	ItemsTxtStat* max_elem_stat = nullptr; // Stat for ranged min/max stats
 
 	TextColor statColor = TextColor::Blue;
 	switch (pItem->pItemData->dwQuality) {
@@ -2763,13 +2806,13 @@ ItemsTxtStat* GetMaxElemStatFromMin(ItemsTxtStat* pStats, int nStats, int nStat,
 	return nullptr;
 }
 
-int ItemGetCorruptor(UnitAny* pItem)
+int ItemGetCorruptor(UnitAny* pItem, int nStat)
 {
 	int corruptor = -1;
 
 	for (int i = 0; i < pItem->pStats->wSetStatCount; i++) {
 		Stat* pStat = &pItem->pStats->pSetStat[i];
-		if (pStat->wStatIndex == STAT_CORRUPTED) {
+		if (pStat->wStatIndex == nStat) {
 			corruptor = pStat->dwStatValue - 2;
 			break;
 		}
@@ -3019,19 +3062,23 @@ void __declspec(naked) ViewInventoryPatch3_ASM()
 //seems to force alt to be down
 BOOL Item::PermShowItemsPatch1()
 {
-	return App.game.alwaysShowItems.toggle.isEnabled || D2CLIENT_GetUIState(UI_GROUND_ITEMS);
-	//return App.game.alwaysShowItems.toggle.isEnabled;
+	BOOL menuOpen = D2CLIENT_GetUIState(UI_ESCMENU_MAIN);
+	BOOL hotkeyConfigOpen = D2CLIENT_GetUIState(UI_HOTKEY_CONFIG);
+	BOOL groundItems = D2CLIENT_GetUIState(UI_GROUND_ITEMS);
+	BOOL miniSkillTree = D2CLIENT_GetUIState(UI_MINISKILL);
+	return (App.game.alwaysShowItems.value || groundItems) &&
+		!menuOpen && !hotkeyConfigOpen && !miniSkillTree && !*p_D2CLIENT_GoldDialog;
 }
 
 //these two seem to deal w/ fixing the inv/waypoints when alt is down
-BOOL Item::PermShowItemsPatch2() {
-	//return App.game.alwaysShowItems.toggle.isEnabled || D2CLIENT_GetUIState(UI_GROUND_ITEMS);
-	return App.game.alwaysShowItems.toggle.isEnabled && !D2CLIENT_GetUIState(UI_GROUND_ITEMS);
+BOOL Item::PermShowItemsPatch2()
+{
+	return App.game.alwaysShowItems.value && !D2CLIENT_GetUIState(UI_GROUND_ITEMS);
 }
 
-BOOL Item::PermShowItemsPatch3() {
-	return App.game.alwaysShowItems.toggle.isEnabled || D2CLIENT_GetUIState(UI_GROUND_ITEMS);
-	//return App.game.alwaysShowItems.toggle.isEnabled;
+BOOL Item::PermShowItemsPatch3()
+{
+	return App.game.alwaysShowItems.value && !D2CLIENT_GetUIState(UI_GROUND_ITEMS);
 }
 
 

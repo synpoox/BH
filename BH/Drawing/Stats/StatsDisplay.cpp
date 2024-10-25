@@ -251,7 +251,7 @@ void StatsDisplay::LoadConfig()
 	}
 	if (customStats.size() > 0) { height += (customStats.size() * 16) + 8; }
 
-	int xPos = App.general.statsOnRight.toggle.isEnabled ? *p_D2CLIENT_ScreenSizeX - 10 - GetXSize() : 10;
+	int xPos = App.general.statsOnRight.value ? *p_D2CLIENT_ScreenSizeX - 10 - GetXSize() : 10;
 	SetX(xPos);
 	SetYSize(height);
 }
@@ -322,7 +322,7 @@ void StatsDisplay::OnDraw()
 
 	if (!IsMinimized())
 	{
-		int xPos = App.general.statsOnRight.toggle.isEnabled ? *p_D2CLIENT_ScreenSizeX - 10 - GetXSize() : 10;
+		int xPos = App.general.statsOnRight.value ? *p_D2CLIENT_ScreenSizeX - 10 - GetXSize() : 10;
 		SetX(xPos);
 
 		if (D2CLIENT_GetUIState(UI_MERC))
@@ -391,6 +391,8 @@ void StatsDisplay::OnDraw()
 		int       lMax = min(static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_MAXLIGHTNINGRESIST, 0)) + 75, MAX_PLAYER_RESISTANCE);
 		int       pMax = min(static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_MAXPOISONRESIST, 0)) + 75, MAX_PLAYER_RESISTANCE);
 		int       pLengthReduce = static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_POISONLENGTHREDUCTION, 0));
+		int       hfd = min(static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_HALFFREEZEDURATION, 0)), 2);
+		int       cbf = static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_CANNOTBEFROZEN, 0));
 
 		Texthook::Draw(column1,
 			(y += 16),
@@ -405,9 +407,11 @@ void StatsDisplay::OnDraw()
 			None,
 			6,
 			Blue,
-			L"ÿc4Cold Resist:ÿc3 %d ÿc0/ %d",
+			L"ÿc4Cold Resist:ÿc3 %d ÿc0/ %d  ÿc4Length:ÿc3 %d%%",
 			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_COLDRESIST, 0)) + penalty,
-			cMax);
+			cMax,
+			(cbf > 0) ? 0 : (100 - 50 * hfd)
+		);
 		Texthook::Draw(column1,
 			(y += 16),
 			None,
@@ -431,8 +435,8 @@ void StatsDisplay::OnDraw()
 			None,
 			6,
 			Gold,
-			L"Curse Resist:ÿc8 %d /ÿc0 50 ÿc4Length:ÿc0 %d%%",
-			static_cast<int>(min(D2COMMON_GetUnitStat(unit, STAT_CURSE_EFFECTIVENESS, 0), 50)),
+			L"Curse Resist:ÿc8 %d /ÿc0 75 ÿc4Length:ÿc0 %d%%",
+			static_cast<int>(min(D2COMMON_GetUnitStat(unit, STAT_CURSE_EFFECTIVENESS, 0), 75)),
 			static_cast<int>(max(100 - D2COMMON_GetUnitStat(unit, STAT_CURSERESISTANCE, 0), 25)));
 		y += 8;
 
@@ -710,6 +714,9 @@ void StatsDisplay::OnDraw()
 		GetIASBreakpointString(unit, ias_bp_string, column1, &y);
 
 		y += 8;
+		int vLevelThreshold[5] = { 9, 18, 27, 36, 45 };
+		int nOWFrameDamage = D2GAME_CalcOpenWoundsDamage(vLevelThreshold, player_level) + 25;
+		int nOWCharDPS = (nOWFrameDamage * 25) / 256;
 
 		Texthook::Draw(column1,
 			(y += 16),
@@ -725,21 +732,21 @@ void StatsDisplay::OnDraw()
 			Gold,
 			L"Open Wounds: ÿc0%d%%/+%d",
 			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_OPENWOUNDS, 0)),
-			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_DEEP_WOUNDS, 0)));
+			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_DEEP_WOUNDS, 0)) + nOWCharDPS);
 		Texthook::Draw(column1,
 			(y += 16),
 			None,
 			6,
 			Gold,
 			L"Deadly Strike:ÿc0 %d",
-			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_DEADLYSTRIKE, 0)));
+			min(static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_DEADLYSTRIKE, 0)), 75) + D2COMMON_GetUnitStat(unit, STAT_MAXDEADLYSTRIKE, 0));
 		Texthook::Draw(column2,
 			y,
 			None,
 			6,
 			Gold,
 			L"Critical Strike: ÿc0%d",
-			static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_CRITICALSTRIKE, 0)));
+			min(static_cast<int>(D2COMMON_GetUnitStat(unit, STAT_CRITICALSTRIKE, 0)), 75));
 		Texthook::Draw(column1,
 			(y += 16),
 			None,
@@ -933,28 +940,19 @@ bool StatsDisplay::OnKey(bool   up,
 	UnitAny* unit = D2CLIENT_GetPlayerUnit();
 	if (!unit)
 		return false;
-	//Resync
-	if (!up && kkey == App.game.resyncHotkey.hotkey)
-	{
-		DWORD curTime = GetTickCount64();
-		if (curTime >= syncCooldown)
-		{
-			SendSyncMsg();
-			syncCooldown = curTime + 1000;
-		}
-	}
 	if (IsMinimized())
 	{
-		if (!up && kkey == App.game.characterStats.hotkey)
-		{
-			LoadConfig();
-			SetMinimized(false);
-			return true;
-		}
+		//if (!up && kkey == App.game.characterStats.hotkey)
+		//{
+		//	LoadConfig();
+		//	SetMinimized(false);
+		//	return true;
+		//}
 	}
 	else
 	{
-		if (!up && (kkey == App.game.characterStats.hotkey || kkey == VK_ESCAPE))
+		//if (!up && (kkey == App.game.characterStats.hotkey || kkey == VK_ESCAPE))
+		if (!up && kkey == VK_ESCAPE)
 		{
 			SetMinimized(true);
 			return true;
@@ -1154,10 +1152,29 @@ void StatsDisplay::GetIASBreakpointString(UnitAny* pUnit,
 				return;
 			}
 
-			nFrameMinAccr = D2COMMON_GetFrameMinAccr_STUB(FRAMES_IAS, pUnit);
-			nAttackRate = D2COMMON_GetUnitStat(pUnit, STAT_ATTACKRATE, 0) + nAttackRateBonus;
-			nAnimAcceleration = nFrameMinAccr + nAttackRate - 30;
-			nMinAnimAcceleration = nAttackRate - 30;
+			// Charge only uses last 7 frames for attack
+			if (nSkillId == 107)
+			{
+				nFrames = 8;
+				int nAnimSpeedBonus = pRightSkill->pSkillInfo->dwParam6;
+				// Charge is special, the animation does not use attack rate at all, so instead it's baked into the anim speed
+				// This makes the formula the same, removes anim speed and use normal attack rate portion like other skills for visual only
+				nAnimSpeed = 100;
+
+				nFrameMinAccr = D2COMMON_GetFrameMinAccr_STUB(FRAMES_IAS, pUnit);
+				nAttackRate = D2COMMON_GetUnitStat(pUnit, STAT_ATTACKRATE, 0) + nAnimSpeedBonus;
+				nAnimAcceleration = nFrameMinAccr + nAttackRate;
+				nMinAnimAcceleration = nAttackRate;
+				nMaxAnimAcceleration = 256;
+			}
+			else
+			{
+				nFrameMinAccr = D2COMMON_GetFrameMinAccr_STUB(FRAMES_IAS, pUnit);
+				nAttackRate = D2COMMON_GetUnitStat(pUnit, STAT_ATTACKRATE, 0) + nAttackRateBonus;
+				nAnimAcceleration = nFrameMinAccr + nAttackRate - 30;
+				nMinAnimAcceleration = nAttackRate - 30;
+			}
+
 		}
 		else if (pUnit->dwType == UNIT_MONSTER && pRightSkill->mode == NPC_MODE_SEQUENCE)
 		{
@@ -1326,7 +1343,7 @@ void StatsDisplay::GetIASBreakpointString(UnitAny* pUnit,
 		nFrameBonus = D2COMMON_10031_UNITS_GetFrameBonus(pUnit);
 		pUnit->dwMode = nOldMode;
 
-		if (nMinAnimAcceleration > 175) nMinAnimAcceleration = 174;  // 174 so we go through the for loop once
+		if (nMinAnimAcceleration > nMaxAnimAcceleration) nMinAnimAcceleration = nMaxAnimAcceleration - 1;  // 174 so we go through the for loop once
 		if (nAnimAcceleration < 15) nAnimAcceleration = 15;
 		if (nAnimAcceleration > nMaxAnimAcceleration) nAnimAcceleration = nMaxAnimAcceleration;
 		if (nAnimSpeed == 0) nAnimSpeed = 256;
