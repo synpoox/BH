@@ -361,7 +361,7 @@ enum Font
 #define STAT_UNUSED190				190
 #define STAT_SKILLONEQUIP			191
 #define STAT_UNUSED192				192
-#define STAT_UNUSED193				193
+#define STAT_SKILLONEQUIP_DISPLAY	193
 #define STAT_SOCKETS				194
 #define STAT_SKILLONSTRIKING		195
 #define STAT_SKILLONKILL			196
@@ -1672,7 +1672,7 @@ const int AwakenMods[][8] = {
 	{STAT_LIFELEECH, -1, -1, -1, -1, -1, -1, -1}, // 55
 	{STAT_MANALEECH, -1, -1, -1, -1, -1, -1, -1}, // 56
 	{STAT_ENHANCEDDEFENSE, STAT_MAGICFIND, -1, -1, -1, -1, -1, -1}, // 57
-	{STAT_SKILLONEQUIP, -1, -1, -1, -1, -1, -1, -1}, // 58
+	{STAT_SKILLONEQUIP_DISPLAY, -1, -1, -1, -1, -1, -1, -1}, // 58
 	{STAT_INCSPLASHRADIUS, -1, -1, -1, -1, -1, -1, -1}, // 59
 	{STAT_ENHANCEDLIFE, STAT_LIFEAFTEREACHKILL, -1, -1, -1, -1, -1, -1}, // 60
 	{STAT_ENHANCEDMANA, STAT_MANAAFTEREACHKILL, -1, -1, -1, -1, -1, -1}, // 61
