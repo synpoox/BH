@@ -3078,7 +3078,7 @@ BOOL Item::PermShowItemsPatch2()
 
 BOOL Item::PermShowItemsPatch3()
 {
-	return App.game.alwaysShowItems.value && !D2CLIENT_GetUIState(UI_GROUND_ITEMS);
+	return App.game.alwaysShowItems.value || D2CLIENT_GetUIState(UI_GROUND_ITEMS);
 }
 
 
