@@ -514,6 +514,7 @@ enum FilterCondition
 	COND_PRICE,
 	COND_ITEMCODE,
 	COND_ADD,
+	COND_CARD,
 
 	COND_NULL
 };
@@ -666,6 +667,7 @@ std::map<std::string, FilterCondition> condition_map =
 	{"WP13", COND_SCEPTER},
 	{"ALLSK", COND_ALLSK},
 	{"PRICE", COND_PRICE},
+	{"CARD", COND_CARD},
 	// These have a number as part of the key, handled separately
 	//{"SK", COND_SK},
 	//{"OS", COND_OS},
@@ -2583,6 +2585,9 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 		break;
 	case COND_WEAPON:
 		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_ALLWEAPON, ITEMFLAG_WEAPON));
+		break;
+	case COND_CARD:
+		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_CARD, ITEMFLAG_MISC));
 		break;
 	case COND_SK:
 		if ((number_ss >> cond_num).fail() || cond_num < 0 || cond_num >(int)SKILL_MAX) { break; }

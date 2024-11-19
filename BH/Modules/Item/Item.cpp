@@ -526,6 +526,10 @@ void GetMiscAttributes()
 		{
 			miscFlags |= ITEM_GROUP_MAP;
 		}
+		else if (ancestorTypes.find(ITEM_TYPE_CARD) != ancestorTypes.end())
+		{
+			miscFlags |= ITEM_GROUP_CARD;
+		}
 
 		// Gem Quality
 		if (ancestorTypes.find(ITEM_TYPE_CHIPPED_GEM) != ancestorTypes.end()) {
