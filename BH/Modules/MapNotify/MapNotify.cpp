@@ -94,16 +94,26 @@ void MapNotify::OnDraw() {
 								   const std::string& wav = (*it)->action.soundFilePath;
                                 int soundID = (*it)->action.soundID;
 
-                                if (!wav.empty() && App.lootfilter.dropSounds.value) {
-                                    BH::PlayCustomWav(wav); // play external WAV asynchronously
-                                }
-                                else if (soundID > 0 && soundID < *p_D2CLIENT_SoundRecords &&
-                                         (soundID < 4657 || soundID > 4698) && App.lootfilter.dropSounds.value) {
-                                    SoundsTxt* pSoundsTxt = *p_D2CLIENT_SoundsTxt + soundID;
-                                    if (pSoundsTxt && pSoundsTxt->loop == 0) {
-                                        D2CLIENT_PlaySound_STUB(soundID, nullptr, 0, 0, 0);
-                                    }
-                                }
+                                // Prefer custom WAV if present
+if (App.lootfilter.dropSounds.value) {
+    const std::string& wav = (*it)->action.soundFilePath; // you added this field earlier
+    if (!wav.empty()) {
+        Sound::PlayWav(wav); // plays from BH.dll\sounds\wav (or absolute/relative)
+    } else {
+        // Fallback to in-game sound id (unchanged)
+        SoundsTxt* pSoundsTxt = *p_D2CLIENT_SoundsTxt;
+        int soundID = (*it)->action.soundID;
+        if (soundID > 0 && soundID < *p_D2CLIENT_SoundRecords &&
+            (soundID < 4657 || soundID > 4698) && pSoundsTxt)
+        {
+            pSoundsTxt = pSoundsTxt + soundID;
+            if (pSoundsTxt && pSoundsTxt->loop == 0) {
+                D2CLIENT_PlaySound_STUB(soundID, NULL, 0, 0, 0);
+            }
+        }
+    }
+}
+
 
 								std::string itemName = GetItemName(unit);
 								regex trimName("^\\s*(?:(?:\\s*?)(ÿc[0123456789;:]))*\\s*(.*?\\S)\\s*(?:ÿc[0123456789;:])*\\s*$");	// Matches on leading/trailing spaces (skips most color codes)
@@ -124,6 +134,7 @@ void MapNotify::OnDraw() {
 			unit->dwFlags |= UNITFLAG_NO_EXPERIENCE;
 		}
 	}
+	Sound::Pump();
 }
 
 

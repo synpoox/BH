@@ -9,6 +9,7 @@
 #include "Modules.h"
 #include "Task.h"
 #include "Drawing/Stats/StatsDisplay.h"
+#include "SoundUtil.h"
 
 string BH::path;
 HINSTANCE BH::instance;
@@ -82,15 +83,22 @@ void BH::Initialize()
 	// Do this asynchronously because D2GFX_GetHwnd() will be null if
 	// we inject on process start
 	Task::Enqueue([]() -> void
-		{
-			std::chrono::milliseconds duration(200);
-			while (!D2GFX_GetHwnd())
-			{
-				std::this_thread::sleep_for(duration);
-			}
-			BH::OldWNDPROC = (WNDPROC)GetWindowLong(D2GFX_GetHwnd(), GWL_WNDPROC);
-			SetWindowLong(D2GFX_GetHwnd(), GWL_WNDPROC, (LONG)GameWindowEvent);
-		});
+{
+    std::chrono::milliseconds duration(200);
+    while (!D2GFX_GetHwnd())
+        std::this_thread::sleep_for(duration);
+
+    HWND hWnd = D2GFX_GetHwnd();
+
+    // --- NEW: init DirectSound here ---
+    Sound::Init(hWnd);
+    // (Optional) Sound::SetDebug(true);
+
+    // Existing: install WndProc
+    BH::OldWNDPROC = (WNDPROC)GetWindowLong(hWnd, GWL_WNDPROC);
+    SetWindowLong(hWnd, GWL_WNDPROC, (LONG)GameWindowEvent);
+});
+
 
 	//settingsUI = new Drawing::UI(SETTINGS_TEXT, App.bhui.sizeX.value, App.bhui.sizeY.value);
 
