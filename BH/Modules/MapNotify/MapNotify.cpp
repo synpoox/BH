@@ -9,46 +9,54 @@
 #include "../../AsyncDrawBuffer.h"
 #include "../Item/Item.h"
 #include "../../Modules/GameSettings/GameSettings.h"
+#include "../../SoundUtil.h"
 
-#pragma optimize( "", off)
+#pragma optimize("", off)
 
 using namespace Drawing;
 
 DrawDirective automapDraw(true, 5);
 
-MapNotify::MapNotify() : Module("MapNotify") {
+MapNotify::MapNotify() : Module("MapNotify")
+{
 	ReadConfig();
 }
 
-void MapNotify::LoadConfig() {
+void MapNotify::LoadConfig()
+{
 	ReadConfig();
 }
 
-void MapNotify::ReadConfig() {
+void MapNotify::ReadConfig()
+{
 }
 
-void MapNotify::OnLoad() {
+void MapNotify::OnLoad()
+{
 	ReadConfig();
 }
 
-void MapNotify::OnKey(bool up, BYTE key, LPARAM lParam, bool* block) {
-	//bool ctrlState = ((GetKeyState(VK_LCONTROL) & 0x80) || (GetKeyState(VK_RCONTROL) & 0x80));
-	//if (key == App.general.reloadConfigCtrl.hotkey && ctrlState || key == App.general.reloadConfig.hotkey && !ctrlState) {
+void MapNotify::OnKey(bool up, BYTE key, LPARAM lParam, bool *block)
+{
+	// bool ctrlState = ((GetKeyState(VK_LCONTROL) & 0x80) || (GetKeyState(VK_RCONTROL) & 0x80));
+	// if (key == App.general.reloadConfigCtrl.hotkey && ctrlState || key == App.general.reloadConfig.hotkey && !ctrlState) {
 	//	*block = true;
 	//	if (up)
 	//		BH::ReloadConfig();
 	//	return;
-	//}
+	// }
 	return;
 }
 
-void MapNotify::OnUnload() {
+void MapNotify::OnUnload()
+{
 }
 
-void MapNotify::OnLoop() {
+void MapNotify::OnLoop()
+{
 }
 
-Act* lastAct = NULL;
+Act *lastAct = NULL;
 
 void MapNotify::OnDraw() {
 	UnitAny* player = D2CLIENT_GetPlayerUnit();
@@ -83,18 +91,19 @@ void MapNotify::OnDraw() {
 								App.lootfilter.enableFilter.value && App.lootfilter.detailedNotifications.value != 0 &&
 								(App.lootfilter.detailedNotifications.value == 1 || (dwFlags & ITEM_NEW)))
 							{
-								SoundsTxt* pSoundsTxt = *p_D2CLIENT_SoundsTxt;
-								int soundID = (*it)->action.soundID;
-								if (soundID > 0 && soundID < *p_D2CLIENT_SoundRecords &&
-									(soundID < 4657 || soundID > 4698) &&	// Don't allow music
-									App.lootfilter.dropSounds.value && pSoundsTxt)
-								{
-									pSoundsTxt = pSoundsTxt + soundID;
-									if (pSoundsTxt && pSoundsTxt->loop == 0)
-									{
-										D2CLIENT_PlaySound_STUB(soundID, NULL, 0, 0, 0);
-									}
-								}
+								   const std::string& wav = (*it)->action.soundFilePath;
+                                int soundID = (*it)->action.soundID;
+
+                                if (!wav.empty() && App.lootfilter.dropSounds.value) {
+                                    BH::PlayCustomWav(wav); // play external WAV asynchronously
+                                }
+                                else if (soundID > 0 && soundID < *p_D2CLIENT_SoundRecords &&
+                                         (soundID < 4657 || soundID > 4698) && App.lootfilter.dropSounds.value) {
+                                    SoundsTxt* pSoundsTxt = *p_D2CLIENT_SoundsTxt + soundID;
+                                    if (pSoundsTxt && pSoundsTxt->loop == 0) {
+                                        D2CLIENT_PlaySound_STUB(soundID, nullptr, 0, 0, 0);
+                                    }
+                                }
 
 								std::string itemName = GetItemName(unit);
 								regex trimName("^\\s*(?:(?:\\s*?)(ÿc[0123456789;:]))*\\s*(.*?\\S)\\s*(?:ÿc[0123456789;:])*\\s*$");	// Matches on leading/trailing spaces (skips most color codes)
@@ -117,18 +126,22 @@ void MapNotify::OnDraw() {
 	}
 }
 
-void MapNotify::OnAutomapDraw() {
-	UnitAny* player = D2CLIENT_GetPlayerUnit();
+
+void MapNotify::OnAutomapDraw()
+{
+	UnitAny *player = D2CLIENT_GetPlayerUnit();
 
 	if (!player || !player->pAct || player->pPath->pRoom1->pRoom2->pLevel->dwLevelNo == 0)
 		return;
 
-	if (lastAct != player->pAct) {
+	if (lastAct != player->pAct)
+	{
 		lastAct = player->pAct;
 		automapDraw.forceUpdate();
 	}
 
-	automapDraw.draw([=](AsyncDrawBuffer& automapBuffer) -> void {
+	automapDraw.draw([=](AsyncDrawBuffer &automapBuffer) -> void
+					 {
 		POINT MyPos;
 		Drawing::Hook::ScreenToAutomap(&MyPos,
 			D2CLIENT_GetUnitX(D2CLIENT_GetPlayerUnit()),
@@ -177,27 +190,29 @@ void MapNotify::OnAutomapDraw() {
 					}
 				}
 			}
-		}
-		});
+		} });
 }
 
-void MapNotify::OnGameJoin() {
+void MapNotify::OnGameJoin()
+{
 }
 
-void Squelch(DWORD Id, BYTE button) {
-	LPBYTE aPacket = new BYTE[7];	//create packet
-	*(BYTE*)&aPacket[0] = 0x5d;
-	*(BYTE*)&aPacket[1] = button;
-	*(BYTE*)&aPacket[2] = 1;
-	*(DWORD*)&aPacket[3] = Id;
+void Squelch(DWORD Id, BYTE button)
+{
+	LPBYTE aPacket = new BYTE[7]; // create packet
+	*(BYTE *)&aPacket[0] = 0x5d;
+	*(BYTE *)&aPacket[1] = button;
+	*(BYTE *)&aPacket[2] = 1;
+	*(DWORD *)&aPacket[3] = Id;
 	D2NET_SendPacket(7, 0, aPacket);
 
-	delete[] aPacket;	//clearing up data
+	delete[] aPacket; // clearing up data
 
 	return;
 }
 
-void MapNotify::OnGamePacketRecv(BYTE* packet, bool* block) {
+void MapNotify::OnGamePacketRecv(BYTE *packet, bool *block)
+{
 }
 
-#pragma optimize( "", on)
+#pragma optimize("", on)

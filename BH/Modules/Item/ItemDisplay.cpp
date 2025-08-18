@@ -4,6 +4,7 @@
 #include <cctype>
 #include <vector>
 #include <string>
+#include <regex>
 
 #define MAP_COLOR_WHITE     0x20
 
@@ -2032,28 +2033,36 @@ int ParsePingLevel(Action* act, const string& key_string) {
 // ParseSoundID
 // Returns an int ranging from 0 to the MAX_SOUND_ID.
 // If the parsed soundID is not found in that range, this will return a 0.
-int ParseSoundID(Action* act, const string& key_string) {
-	std::regex pattern("%" + key_string + "-([0-9]{1,4})%",
-		std::regex_constants::ECMAScript | std::regex_constants::icase);
-	// Default soundID should be 0 incase this is played.
-	// 0 is none.wav
-	int soundID = 0;
-	std::smatch the_match;
+int ParseSoundID(Action* act, const string& key_string)
+{
+    // act->soundID and act->soundFilePath may already have valid values.
+    std::regex idPattern("%SOUNDID-([0-9]{1,9})%", std::regex_constants::icase);
+    std::regex filePattern("%SOUNDFILE-([^%]+)%", std::regex_constants::icase);
+    std::smatch match;
 
-	if (std::regex_search(act->name, the_match, pattern)) {
-		int matchedSoundID = stoi(the_match[1].str());
-		act->name.replace(
-			the_match.prefix().length(),
-			the_match[0].length(), "");
+    // Numeric ID (legacy)
+    if (std::regex_search(act->name, match, idPattern))
+    {
+        act->soundID = std::stoi(match[1].str());
+        act->name.replace(match.prefix().length(), match[0].length(), "");
+        return act->soundID;
+    }
 
-		// Do our best to ensure the soundID is valid.
-		// Ensure soundID is in the range of 0 and MAX_SOUND_ID.
-		if (matchedSoundID < *p_D2CLIENT_SoundRecords) {
-			soundID = matchedSoundID;
-		}
-	}
+    // Filename
+    if (std::regex_search(act->name, match, filePattern))
+    {
+        std::string raw = match[1].str();
+        size_t start = raw.find_first_not_of(" \t\r\n");
+        size_t end   = raw.find_last_not_of(" \t\r\n");
+        if (start != std::string::npos)
+            act->soundFilePath = raw.substr(start, end - start + 1);
 
-	return soundID;
+        act->name.replace(match.prefix().length(), match[0].length(), "");
+        return -1;
+    }
+
+    // No token found — leave values as they were
+    return act->soundID >= 0 ? act->soundID : -1;
 }
 
 string ParseDescription(Action* act)

@@ -818,7 +818,8 @@ struct Action
 	int    lineColor;
 	int    notifyColor;
 	int pingLevel;
-	int soundID; // Must range from 0 to MAX_SOUND_ID.
+	int soundID = -1; // Must range from 0 to MAX_SOUND_ID.
+	std::string soundFilePath;
 
 	Action() :
 		colorOnMap(UNDEFINED_COLOR),
@@ -938,7 +939,7 @@ namespace ItemDisplay
 void            BuildAction(string* str,
 	Action* act);
 int ParsePingLevel(Action* act, const string& reg_string);
-int ParseSoundID(Action* act, const string& reg_string);
+int ParseSoundID(Action* act, const std::string& key_string);
 string ParseDescription(Action* act);
 int    ParseMapColor(Action* act,
 	const string& reg_string);
