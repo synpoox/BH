@@ -1,34 +1,37 @@
 ﻿#include "ItemDisplay.h"
 #include "Item.h"
 #include "../../Drawing/Stats/StatsDisplay.h"
+#include "../../D2Helpers.h"
+#include "../../Common.h"
 #include <cctype>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #define MAP_COLOR_WHITE     0x20
 
 // All colors here must also be defined in ReplacementMap
 #define MAP_COLOR_REPLACEMENTS	\
-	{"WHITE", 0x20},		\
-	{"RED", 0x0A},			\
-	{"GREEN", 0x84},		\
-	{"BLUE", 0x97},			\
-	{"GOLD", 0x0D},			\
-	{"GRAY", 0xD0},			\
-	{"BLACK", 0x00},		\
-	{"TAN", 0x5A},			\
-	{"ORANGE", 0x60},		\
-	{"YELLOW", 0x0C},		\
-	{"PURPLE", 0x9B},		\
-	{"DARK_GREEN", 0x76}, \
-	{"CORAL", 0x66}, \
-	{"SAGE", 0x82}, \
-	{"TEAL", 0xCB}, \
-	{"LIGHT_GRAY", 0xD6}, \
-	{"FULL_TRANS", 0xCB}, \
-	{"THREE_FOURTHS_TRANS", 0xCB}, \
-	{"HALF_TRANS", 0xCB}, \
-	{"QUARTER_TRANS", 0xCB}
+	{L"WHITE", 0x20},		\
+	{L"RED", 0x0A},			\
+	{L"GREEN", 0x84},		\
+	{L"BLUE", 0x97},			\
+	{L"GOLD", 0x0D},			\
+	{L"GRAY", 0xD0},			\
+	{L"BLACK", 0x00},		\
+	{L"TAN", 0x5A},			\
+	{L"ORANGE", 0x60},		\
+	{L"YELLOW", 0x0C},		\
+	{L"PURPLE", 0x9B},		\
+	{L"DARK_GREEN", 0x76}, \
+	{L"CORAL", 0x66}, \
+	{L"SAGE", 0x82}, \
+	{L"TEAL", 0xCB}, \
+	{L"LIGHT_GRAY", 0xD6}, \
+	{L"FULL_TRANS", 0xCB}, \
+	{L"THREE_FOURTHS_TRANS", 0xCB}, \
+	{L"HALF_TRANS", 0xCB}, \
+	{L"QUARTER_TRANS", 0xCB}
 
 std::map<std::string, int> code_to_dwtxtfileno = {
 		{"hax", 0},
@@ -349,12 +352,48 @@ std::map<int, int> maptiers = {
 	{ITEM_TYPE_T5_MAP, 5},
 };
 
+int GetAdjustedUnitStat(UnitItemInfo* uInfo, DWORD stat, DWORD layer)
+{
+	int tmpVal = D2COMMON_GetUnitStat(uInfo->item, stat, layer);
+	if (stat == STAT_MAXHP || stat == STAT_MAXMANA) {
+		tmpVal /= 256;
+	}
+	else if (
+		stat == STAT_ENHANCEDDEFENSE ||				// return 0
+		stat == STAT_ENHANCEDMAXIMUMDAMAGE ||		// return 0
+		stat == STAT_ENHANCEDMINIMUMDAMAGE ||		// return 0
+		stat == STAT_MINIMUMDAMAGE ||				// return base min 1h weapon damage
+		stat == STAT_MAXIMUMDAMAGE ||				// return base max 1h weapon damage
+		stat == STAT_SECONDARYMINIMUMDAMAGE ||		// return base min 2h weapon damage
+		stat == STAT_SECONDARYMAXIMUMDAMAGE	||		// return base max 2h weapon damage
+		stat == STAT_MINIMUMTHROWINGDAMAGE ||		// return min throw weapon damage
+		stat == STAT_MAXIMUMTHROWINGDAMAGE		    // return max throw weapon damage
+		) {
+		tmpVal = GetStatFromList(uInfo, stat);
+	}
+	return tmpVal;
+}
+
 enum AttributeFlagTypes
 {
 	ITEMFLAG_BASE,
 	ITEMFLAG_WEAPON,
 	ITEMFLAG_ARMOR,
 	ITEMFLAG_MISC
+};
+
+enum LocationFlagTypes
+{
+	LOCATIONFLAG_EQUIPPED,
+	LOCATIONFLAG_MERCEQUIPPED,
+	LOCATIONFLAG_INVENTORY,
+	LOCATIONFLAG_CUBE,
+	LOCATIONFLAG_STASH,
+	LOCATIONFLAG_GROUND,
+	LOCATIONFLAG_COMPENDIUM,
+	LOCATIONFLAG_PREVIEW,
+	LOCATIONFLAG_GUILDVAULT,
+	LOCATIONFLAG_TROPHYCASE
 };
 
 enum Operation
@@ -384,6 +423,7 @@ enum FilterCondition
 	COND_DRUID,
 	COND_ASSASSIN,
 	COND_CRAFTALVL,
+	COND_REROLLALVL,
 	COND_PREFIX,
 	COND_SUFFIX,
 	COND_AUTOMOD,
@@ -460,8 +500,21 @@ enum FilterCondition
 	COND_SIN,
 	COND_SOR,
 	COND_ZON,
+	COND_MISC,
+	COND_JEWELRY,
+	COND_CHARM,
+	COND_QUIVER,
 	COND_SHOP,
 	COND_EQUIPPED,
+	COND_MERC,
+	COND_INVENTORY,
+	COND_CUBE,
+	COND_STASH,
+	COND_GROUND,
+	COND_COMPENDIUM,
+	COND_PREVIEW,
+	COND_GUILDVAULT,
+	COND_TROPHYCASE,
 	COND_1H,
 	COND_2H,
 	COND_AXE,
@@ -490,163 +543,238 @@ enum FilterCondition
 	COND_STAT,
 	COND_CHARSTAT,
 	COND_MULTI,
+	COND_BUYPRICE,
+	COND_SELLPRICE,
 	COND_PRICE,
+	COND_WIDTH,
+	COND_HEIGHT,
+	COND_AREA,
 	COND_ITEMCODE,
 	COND_ADD,
+	COND_TRUE,
+	COND_FALSE,
+	COND_REQSTAT,
+	COND_BASEDAMAGEMIN1H,
+	COND_BASEDAMAGEMIN2H,
+	COND_BASEDAMAGEMINTHROW,
+	COND_BASEDAMAGEMINKICK,
+	COND_BASEDAMAGEMINSMITE,
+	COND_BASEDAMAGEMAX1H,
+	COND_BASEDAMAGEMAX2H,
+	COND_BASEDAMAGEMAXTHROW,
+	COND_BASEDAMAGEMAXKICK,
+	COND_BASEDAMAGEMAXSMITE,
+	COND_BASEBLOCK,
+	COND_ALLATTRIB,
+	COND_MAXRES,
+	COND_PLUSDEF,
+	COND_UPSTAT,
+	COND_MAXSOCKETS,
+	COND_FORMULA,
+	COND_ANYDISCOVERED,
+	COND_ALLDISCOVERED,
+	COND_ANYOWNED,
+	COND_ALLOWNED,
 	COND_CARD,
 
 	COND_NULL
 };
 
-std::map<std::string, FilterCondition> condition_map =
+std::map<std::wstring, FilterCondition> condition_map =
 {
-	{"AND", COND_AND},
-	{"&&", COND_AND},
-	{"OR", COND_OR},
-	{"||", COND_OR},
-	{"ETH", COND_ETH},
-	{"SOCK", COND_SOCK},
-	{"SOCKETS", COND_SOCK},
-	{"SET", COND_SET},
-	{"MAG", COND_MAG},
-	{"RARE", COND_RARE},
-	{"UNI", COND_UNI},
-	{"AMAZON", COND_AMAZON},
-	{"SORCERESS", COND_SORCERESS},
-	{"NECROMANCER", COND_NECROMANCER},
-	{"PALADIN", COND_PALADIN},
-	{"BARBARIAN", COND_BARBARIAN},
-	{"DRUID", COND_DRUID},
-	{"ASSASSIN", COND_ASSASSIN},
-	{"CRAFTALVL", COND_CRAFTALVL},
-	{"PREFIX", COND_PREFIX},
-	{"SUFFIX", COND_SUFFIX},
-	{"AUTOMOD", COND_AUTOMOD},
-	{"MAPID", COND_MAPID},
-	{"MAPTIER", COND_MAPTIER},
-	{"CRAFT", COND_CRAFT},
-	{"RW", COND_RW},
-	{"NMAG", COND_NMAG},
-	{"SUP", COND_SUP},
-	{"INF", COND_INF},
-	{"NORM", COND_NORM},
-	{"EXC", COND_EXC},
-	{"ELT", COND_ELT},
-	{"CLASS", COND_CLASS},
-	{"ID", COND_ID},
-	{"ILVL", COND_ILVL},
-	{"QLVL", COND_QLVL},
-	{"ALVL", COND_ALVL},
-	{"CLVL", COND_CLVL},
-	{"FILTLVL", COND_FILTLVL},
-	{"DIFF", COND_DIFF},
-	{"RUNE", COND_RUNE},
-	{"GOLD", COND_GOLD},
-	{"GEMMED", COND_GEMMED},
-	{"GEMTYPE", COND_GEMTYPE},
-	{"GEM", COND_GEM},
-	{"GEMLEVEL", COND_GEM},
-	{"ED", COND_ED},
-	{"EDEF", COND_EDEF},
-	{"EDAM", COND_EDAM},
-	{"DEF", COND_DEF},
-	{"MAXDUR", COND_MAXDUR},
-	{"RES", COND_RES},
-	{"FRES", COND_FRES},
-	{"CRES", COND_CRES},
-	{"LRES", COND_LRES},
-	{"PRES", COND_PRES},
-	{"IAS", COND_IAS},
-	{"FCR", COND_FCR},
-	{"FHR", COND_FHR},
-	{"FBR", COND_FBR},
-	{"LIFE", COND_LIFE},
-	{"MANA", COND_MANA},
-	{"QTY", COND_QTY},
-	{"GOODSK", COND_GOODSK},
-	{"GOODTBSK", COND_GOODTBSK},
-	{"FOOLS", COND_FOOLS},
-	{"LVLREQ", COND_LVLREQ},
-	{"ARPER", COND_ARPER},
-	{"MFIND", COND_MFIND},
-	{"GFIND", COND_GFIND},
-	{"STR", COND_STR},
-	{"DEX", COND_DEX},
-	{"FRW", COND_FRW},
-	{"MINDMG", COND_MINDMG},
-	{"MAXDMG", COND_MAXDMG},
-	{"AR", COND_AR},
-	{"DTM", COND_DTM},
-	{"MAEK", COND_MAEK},
-	{"REPLIFE", COND_REPLIFE},
-	{"REPQUANT", COND_REPQUANT},
-	{"REPAIR", COND_REPAIR},
-	{"ARMOR", COND_ARMOR},
-	{"BELT", COND_BELT},
-	{"CHEST", COND_CHEST},
-	{"HELM", COND_HELM},
-	{"SHIELD", COND_SHIELD},
-	{"GLOVES", COND_GLOVES},
-	{"BOOTS", COND_BOOTS},
-	{"CIRC", COND_CIRC},
-	{"DRU", COND_DRU},
-	{"BAR", COND_BAR},
-	{"DIN", COND_DIN},
-	{"NEC", COND_NEC},
-	{"SIN", COND_SIN},
-	{"SOR", COND_SOR},
-	{"ZON", COND_ZON},
-	{"SHOP", COND_SHOP},
-	{"EQUIPPED", COND_EQUIPPED},
-	{"1H", COND_1H},
-	{"2H", COND_2H},
-	{"AXE", COND_AXE},
-	{"MACE", COND_MACE},
-	{"CLUB", COND_CLUB},
-	{"TMACE", COND_TMACE},
-	{"HAMMER", COND_HAMMER},
-	{"SWORD", COND_SWORD},
-	{"DAGGER", COND_DAGGER},
-	{"THROWING", COND_THROWING},
-	{"JAV", COND_JAV},
-	{"SPEAR", COND_SPEAR},
-	{"POLEARM", COND_POLEARM},
-	{"BOW", COND_BOW},
-	{"XBOW", COND_XBOW},
-	{"STAFF", COND_STAFF},
-	{"WAND", COND_WAND},
-	{"SCEPTER", COND_SCEPTER},
-	{"EQ1", COND_HELM},
-	{"EQ2", COND_CHEST},
-	{"EQ3", COND_SHIELD},
-	{"EQ4", COND_GLOVES},
-	{"EQ5", COND_BOOTS},
-	{"EQ6", COND_BELT},
-	{"EQ7", COND_CIRC},
-	{"CL1", COND_DRU},
-	{"CL2", COND_BAR},
-	{"CL3", COND_DIN},
-	{"CL4", COND_NEC},
-	{"CL5", COND_SIN},
-	{"CL6", COND_SOR},
-	{"CL7", COND_ZON},
-	{"WEAPON", COND_WEAPON},
-	{"WP1", COND_AXE},
-	{"WP2", COND_MACE},
-	{"WP3", COND_SWORD},
-	{"WP4", COND_DAGGER},
-	{"WP5", COND_THROWING},
-	{"WP6", COND_JAV},
-	{"WP7", COND_SPEAR},
-	{"WP8", COND_POLEARM},
-	{"WP9", COND_BOW},
-	{"WP10", COND_XBOW},
-	{"WP11", COND_STAFF},
-	{"WP12", COND_WAND},
-	{"WP13", COND_SCEPTER},
-	{"ALLSK", COND_ALLSK},
-	{"PRICE", COND_PRICE},
-	{"CARD", COND_CARD},
+	{L"AND", COND_AND},
+	{L"&&", COND_AND},
+	{L"OR", COND_OR},
+	{L"||", COND_OR},
+	{L"TRUE", COND_TRUE},
+	{L"FALSE", COND_FALSE},
+	{L"ETH", COND_ETH},
+	{L"SOCK", COND_SOCK},
+	{L"SOCKETS", COND_SOCK},
+	{L"SET", COND_SET},
+	{L"MAG", COND_MAG},
+	{L"RARE", COND_RARE},
+	{L"UNI", COND_UNI},
+	{L"AMAZON", COND_AMAZON},
+	{L"SORCERESS", COND_SORCERESS},
+	{L"NECROMANCER", COND_NECROMANCER},
+	{L"PALADIN", COND_PALADIN},
+	{L"BARBARIAN", COND_BARBARIAN},
+	{L"DRUID", COND_DRUID},
+	{L"ASSASSIN", COND_ASSASSIN},
+	{L"CRAFTALVL", COND_CRAFTALVL},
+	{L"REROLLALVL", COND_REROLLALVL},
+	{L"PREFIX", COND_PREFIX},
+	{L"SUFFIX", COND_SUFFIX},
+	{L"AUTOMOD", COND_AUTOMOD},
+	{L"MAPID", COND_MAPID},
+	{L"MAPTIER", COND_MAPTIER},
+	{L"CRAFT", COND_CRAFT},
+	{L"RW", COND_RW},
+	{L"NMAG", COND_NMAG},
+	{L"SUP", COND_SUP},
+	{L"INF", COND_INF},
+	{L"NORM", COND_NORM},
+	{L"EXC", COND_EXC},
+	{L"ELT", COND_ELT},
+	{L"CLASS", COND_CLASS},
+	{L"ID", COND_ID},
+	{L"ILVL", COND_ILVL},
+	{L"QLVL", COND_QLVL},
+	{L"ALVL", COND_ALVL},
+	{L"CLVL", COND_CLVL},
+	{L"FILTLVL", COND_FILTLVL},
+	{L"DIFF", COND_DIFF},
+	{L"RUNE", COND_RUNE},
+	{L"GOLD", COND_GOLD},
+	{L"GEMMED", COND_GEMMED},
+	{L"GEMTYPE", COND_GEMTYPE},
+	{L"GEM", COND_GEM},
+	{L"GEMLEVEL", COND_GEM},
+	{L"ED", COND_ED},
+	{L"EDEF", COND_EDEF},
+	{L"EDAM", COND_EDAM},
+	{L"DEF", COND_DEF},
+	{L"MAXDUR", COND_MAXDUR},
+	{L"RES", COND_RES},
+	{L"FRES", COND_FRES},
+	{L"CRES", COND_CRES},
+	{L"LRES", COND_LRES},
+	{L"PRES", COND_PRES},
+	{L"IAS", COND_IAS},
+	{L"FCR", COND_FCR},
+	{L"FHR", COND_FHR},
+	{L"FBR", COND_FBR},
+	{L"LIFE", COND_LIFE},
+	{L"MANA", COND_MANA},
+	{L"QTY", COND_QTY},
+	{L"GOODSK", COND_GOODSK},
+	{L"GOODTBSK", COND_GOODTBSK},
+	{L"FOOLS", COND_FOOLS},
+	{L"LVLREQ", COND_LVLREQ},
+	{L"ARPER", COND_ARPER},
+	{L"MFIND", COND_MFIND},
+	{L"GFIND", COND_GFIND},
+	{L"STR", COND_STR},
+	{L"DEX", COND_DEX},
+	{L"FRW", COND_FRW},
+	{L"MINDMG", COND_MINDMG},
+	{L"MAXDMG", COND_MAXDMG},
+	{L"AR", COND_AR},
+	{L"DTM", COND_DTM},
+	{L"MAEK", COND_MAEK},
+	{L"REPLIFE", COND_REPLIFE},
+	{L"REPQUANT", COND_REPQUANT},
+	{L"REPAIR", COND_REPAIR},
+	{L"ARMOR", COND_ARMOR},
+	{L"BELT", COND_BELT},
+	{L"CHEST", COND_CHEST},
+	{L"HELM", COND_HELM},
+	{L"SHIELD", COND_SHIELD},
+	{L"GLOVES", COND_GLOVES},
+	{L"BOOTS", COND_BOOTS},
+	{L"CIRC", COND_CIRC},
+	{L"DRU", COND_DRU},
+	{L"BAR", COND_BAR},
+	{L"DIN", COND_DIN},
+	{L"NEC", COND_NEC},
+	{L"SIN", COND_SIN},
+	{L"SOR", COND_SOR},
+	{L"ZON", COND_ZON},
+	{L"MISC", COND_MISC},
+	{L"JEWELRY", COND_JEWELRY},
+	{L"CHARM", COND_CHARM},
+	{L"QUIVER", COND_QUIVER},
+	{L"SHOP", COND_SHOP},
+	{L"EQUIPPED", COND_EQUIPPED},
+	{L"MERC", COND_MERC},
+	{L"CUBE", COND_CUBE},
+	{L"INVENTORY", COND_INVENTORY},
+	{L"STASH", COND_STASH},
+	{L"GROUND", COND_GROUND},
+	{L"COMPENDIUM", COND_COMPENDIUM},
+	{L"PREVIEW", COND_PREVIEW},
+	{L"GUILDVAULT", COND_GUILDVAULT},
+	{L"TROPHYCASE", COND_TROPHYCASE},
+	{L"1H", COND_1H},
+	{L"2H", COND_2H},
+	{L"AXE", COND_AXE},
+	{L"MACE", COND_MACE},
+	{L"CLUB", COND_CLUB},
+	{L"TMACE", COND_TMACE},
+	{L"HAMMER", COND_HAMMER},
+	{L"SWORD", COND_SWORD},
+	{L"DAGGER", COND_DAGGER},
+	{L"THROWING", COND_THROWING},
+	{L"JAV", COND_JAV},
+	{L"SPEAR", COND_SPEAR},
+	{L"POLEARM", COND_POLEARM},
+	{L"BOW", COND_BOW},
+	{L"XBOW", COND_XBOW},
+	{L"STAFF", COND_STAFF},
+	{L"WAND", COND_WAND},
+	{L"SCEPTER", COND_SCEPTER},
+	{L"EQ1", COND_HELM},
+	{L"EQ2", COND_CHEST},
+	{L"EQ3", COND_SHIELD},
+	{L"EQ4", COND_GLOVES},
+	{L"EQ5", COND_BOOTS},
+	{L"EQ6", COND_BELT},
+	{L"EQ7", COND_CIRC},
+	{L"CL1", COND_DRU},
+	{L"CL2", COND_BAR},
+	{L"CL3", COND_DIN},
+	{L"CL4", COND_NEC},
+	{L"CL5", COND_SIN},
+	{L"CL6", COND_SOR},
+	{L"CL7", COND_ZON},
+	{L"WEAPON", COND_WEAPON},
+	{L"WP1", COND_AXE},
+	{L"WP2", COND_MACE},
+	{L"WP3", COND_SWORD},
+	{L"WP4", COND_DAGGER},
+	{L"WP5", COND_THROWING},
+	{L"WP6", COND_JAV},
+	{L"WP7", COND_SPEAR},
+	{L"WP8", COND_POLEARM},
+	{L"WP9", COND_BOW},
+	{L"WP10", COND_XBOW},
+	{L"WP11", COND_STAFF},
+	{L"WP12", COND_WAND},
+	{L"WP13", COND_SCEPTER},
+	{L"ALLSK", COND_ALLSK},
+	{L"BUYPRICE", COND_BUYPRICE},
+	{L"SELLPRICE", COND_PRICE},
+	{L"PRICE", COND_PRICE},
+	{L"CARD", COND_CARD},
+	{L"REQSTR", COND_REQSTAT},
+	{L"REQDEX", COND_REQSTAT},
+	{L"REQLVL", COND_REQSTAT},
+	{L"BASEMINONEH", COND_BASEDAMAGEMIN1H},
+	{L"BASEMINTWOH", COND_BASEDAMAGEMIN2H},
+	{L"BASEMINTHROW", COND_BASEDAMAGEMINTHROW},
+	{L"BASEMINKICK", COND_BASEDAMAGEMINKICK},
+	{L"BASEMINSMITE", COND_BASEDAMAGEMINSMITE},
+	{L"BASEMAXONEH", COND_BASEDAMAGEMAX1H},
+	{L"BASEMAXTWOH", COND_BASEDAMAGEMAX2H},
+	{L"BASEMAXTHROW", COND_BASEDAMAGEMAXTHROW},
+	{L"BASEMAXKICK", COND_BASEDAMAGEMAXKICK},
+	{L"BASEMAXSMITE", COND_BASEDAMAGEMAXSMITE},
+	{L"BASEBLOCK", COND_BASEBLOCK},
+	{L"ALLATTRIB", COND_ALLATTRIB},
+	{L"MAXRES", COND_MAXRES},
+	{L"PLUSDEF", COND_PLUSDEF},
+	{L"UPSTR", COND_UPSTAT},
+	{L"UPDEX", COND_UPSTAT},
+	{L"UPLVL", COND_UPSTAT},
+	{L"MAXSOCKETS", COND_MAXSOCKETS},
+	{L"WIDTH", COND_WIDTH},
+	{L"HEIGHT", COND_HEIGHT},
+	{L"AREA", COND_AREA},
+	{L"ANYDISCOVERED", COND_ANYDISCOVERED},
+	{L"ALLDISCOVERED", COND_ALLDISCOVERED},
+	{L"ANYOWNED", COND_ANYOWNED},
+	{L"ALLOWNED", COND_ALLOWNED},
 	// These have a number as part of the key, handled separately
 	//{"SK", COND_SK},
 	//{"OS", COND_OS},
@@ -669,29 +797,32 @@ struct SkillReplace {
 };
 
 // case-sensitive searches for AddCondition
-const unordered_map<string, const SkillReplace> skills = {
-	{{"LIFE"}, { STAT_MAXHP, 0}},
-	{{"MANA"}, { STAT_MAXMANA, 0}},
-	{{"STR"}, { STAT_STRENGTH, 0}},
-	{{"DEX"}, { STAT_DEXTERITY, 0}},
-	{{"CRES"}, { STAT_COLDRESIST, 0}},
-	{{"FRES"}, { STAT_FIRERESIST, 0}},
-	{{"LRES"}, { STAT_LIGHTNINGRESIST, 0}},
-	{{"PRES"}, { STAT_POISONRESIST, 0}},
-	{{"MINDMG"}, { STAT_MINIMUMDAMAGE, 0}},
-	{{"MAXDMG"}, { STAT_MAXIMUMDAMAGE, 0}},
-	{{"EDEF"}, { STAT_ENHANCEDDEFENSE, 0}},
-	{{"EDAM"}, { STAT_ENHANCEDMAXIMUMDAMAGE, 0}},
-	{{"FCR"}, { STAT_FASTERCAST, 0}},
-	{{"AR"}, { STAT_ATTACKRATING, 0}},
-	{{"REPLIFE"}, { STAT_REPLENISHLIFE, 0}},
-	{{"STAT"}, { ~0UL, 1}},
-	{{"MULTI"}, { ~0UL, 2}},
+const unordered_map<wstring, SkillReplace> skills = {
+	{{L"LIFE"}, { STAT_MAXHP, 0}},
+	{{L"MANA"}, { STAT_MAXMANA, 0}},
+	{{L"STR"}, { STAT_STRENGTH, 0}},
+	{{L"DEX"}, { STAT_DEXTERITY, 0}},
+	{{L"CRES"}, { STAT_COLDRESIST, 0}},
+	{{L"FRES"}, { STAT_FIRERESIST, 0}},
+	{{L"LRES"}, { STAT_LIGHTNINGRESIST, 0}},
+	{{L"PRES"}, { STAT_POISONRESIST, 0}},
+	{{L"MINDMG"}, { STAT_MINIMUMDAMAGE, 0}},
+	{{L"MAXDMG"}, { STAT_MAXIMUMDAMAGE, 0}},
+	{{L"EDEF"}, { STAT_ENHANCEDDEFENSE, 0}},
+	{{L"EDAM"}, { STAT_ENHANCEDMAXIMUMDAMAGE, 0}},
+	{{L"FCR"}, { STAT_FASTERCAST, 0}},
+	{{L"AR"}, { STAT_ATTACKRATING, 0}},
+	{{L"REPLIFE"}, { STAT_REPLENISHLIFE, 0}},
+	{{L"STAT"}, { ~0UL, 1}},
+	{{L"MULTI"}, { ~0UL, 2}},
 };
 
+unordered_map<wstring, std::shared_ptr<Formula<FormulaContext>>> formulaMap;
+
 std::map<std::string, int>   UnknownItemCodes;
-vector<pair<string, string>> aliases;
-vector<pair<string, string>> rules;
+vector<pair<string, string>> formulas;
+vector<pair<wstring, wstring>> aliases;
+vector<pair<wstring, wstring>> rules;
 vector<Rule*>                RuleList;
 vector<Rule*>                MapRuleList;
 vector<Rule*>                IgnoreRuleList;
@@ -701,31 +832,42 @@ TrueCondition* trueCondition = new TrueCondition();
 FalseCondition* falseCondition = new FalseCondition();
 
 // Helper function to get a list of strings
-vector<string> split(const string& s,
-	char          delim)
+//vector<string> split(const string& s,
+//	char          delim)
+//{
+//	vector<string> result;
+//	stringstream   ss(s);
+//	string         item;
+//	while (getline(ss, item, delim)) { result.push_back(item); }
+//	return result;
+//}
+
+// Helper function to get a list of wide strings
+vector<wstring> wsplit(const wstring& s,
+	wchar_t          delim)
 {
-	vector<string> result;
-	stringstream   ss(s);
-	string         item;
+	vector<wstring> result;
+	wstringstream   ss(s);
+	wstring         item;
 	while (getline(ss, item, delim)) { result.push_back(item); }
 	return result;
 }
 
 // Helper function to join a list of string
-template <typename C>
-std::string join(C const& strings,
-	std::string const& delim)
-{
-	std::ostringstream ostr;
-	auto               last = std::prev(std::end(strings));
-	std::copy(
-		std::begin(strings),
-		last,
-		std::ostream_iterator<std::string>(ostr, delim.c_str())
-	);
-	ostr << *last;
-	return ostr.str();
-}
+//template <typename C>
+//std::string join(C const& strings,
+//	std::string const& delim)
+//{
+//	std::ostringstream ostr;
+//	auto               last = std::prev(std::end(strings));
+//	std::copy(
+//		std::begin(strings),
+//		last,
+//		std::ostream_iterator<std::string>(ostr, delim.c_str())
+//	);
+//	ostr << *last;
+//	return ostr.str();
+//}
 
 int ShopNPCs[] = {
 	NPCID_Akara,	// Act 1
@@ -746,29 +888,47 @@ int ShopNPCs[] = {
 	NPCID_Anya		// Act 5
 };
 
-char* GemLevels[] = {
-	"NONE",
-	"Chipped",
-	"Flawed",
-	"Normal",
-	"Flawless",
-	"Perfect"
+int GetShopPrice(UnitAny* pPlayer, UnitAny* pItem, int nTransactionType)
+{
+	int nNpcId = NPCID_Malah;
+	if (nTransactionType == TRANSACTIONTYPE_BUY)
+	{
+		UnitAny* pVendor = D2CLIENT_GetCurrentInteractingNPC();
+		if (pVendor)
+		{
+			if (find(begin(ShopNPCs), end(ShopNPCs), pVendor->dwTxtFileNo) != end(ShopNPCs))
+			{
+				nNpcId = pVendor->dwTxtFileNo;
+			}
+		}
+	}
+
+	return D2COMMON_GetItemPrice(pPlayer, pItem, D2CLIENT_GetDifficulty(), (DWORD)D2CLIENT_GetQuestInfo(), nNpcId, nTransactionType);
+}
+
+const wchar_t* GemLevels[] = {
+	L"NONE",
+	L"Chipped",
+	L"Flawed",
+	L"Normal",
+	L"Flawless",
+	L"Perfect"
 };
 
-char* GemTypes[] = {
-	"NONE",
-	"Amethyst",
-	"Diamond",
-	"Emerald",
-	"Ruby",
-	"Sapphire",
-	"Topaz",
-	"Skull"
+const wchar_t* GemTypes[] = {
+	L"NONE",
+	L"Amethyst",
+	L"Diamond",
+	L"Emerald",
+	L"Ruby",
+	L"Sapphire",
+	L"Topaz",
+	L"Skull"
 };
 
 struct ReplaceContext {
 	UnitItemInfo* info;
-	string name;
+	wstring name;
 	ItemsTxt* text;
 	// no newlines allowed
 	bool limit;
@@ -777,193 +937,278 @@ struct ReplaceContext {
 	bool nmagStaffmod;
 	bool blockedNL;
 
-	ReplaceContext(UnitItemInfo* info, string name, bool limit);
+	ReplaceContext(UnitItemInfo* info, wstring name, bool limit);
 };
 
 struct ReplacementValue {
-	const function<string(ReplaceContext&, const ReplacementValue&)> fn;
-	string str = "";
+	const function<wstring(ReplaceContext&, const ReplacementValue&)> fn;
+	wstring str = L"";
 	int param1 = 0;
 	int param2 = 0;
 
-	ReplacementValue(const string& str, const int param1, const int param2, function<string(ReplaceContext&, const ReplacementValue&)> fn) :
+	ReplacementValue(const wstring& str, const int param1, const int param2, function<wstring(ReplaceContext&, const ReplacementValue&)> fn) :
 		str(str),
 		param1(param1),
 		param2(param2),
 		fn(fn) {
 	}
 
-	string Replace(ReplaceContext& ctx) const;
+	wstring Replace(ReplaceContext& ctx) const;
 };
 
 struct ReplacementSpec {
 	uint16_t params;
-	function<string(ReplaceContext&, const ReplacementValue&)> fn;
+	function<wstring(ReplaceContext&, const ReplacementValue&)> fn;
 
-	ReplacementSpec(uint16_t params, function<string(ReplaceContext&, const ReplacementValue&)> fn) :
+	ReplacementSpec(uint16_t params, function<wstring(ReplaceContext&, const ReplacementValue&)> fn) :
 		params(params),
 		fn(fn) {
 	}
 
-	static ReplacementValue MakeReplacementValue(const string& str);
-	static ReplacementValue MakeReplacementValue(const smatch& match, bool& fail);
+	static ReplacementValue MakeReplacementValue(const wstring& str);
+	static ReplacementValue MakeReplacementValue(const wsmatch& match, bool& fail);
 
 	// STATIC keywords
 	// no-op
-	static string ReplaceNone(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceNone(ReplaceContext& ctx, const ReplacementValue& val);
 	// string between keywords
-	static string ReplaceConst(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceConst(ReplaceContext& ctx, const ReplacementValue& val);
 	// %NAME%
-	static string ReplaceName(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceName(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASENAME%
+	static wstring ReplaceBaseName(ReplaceContext& ctx, const ReplacementValue& val);
 	// %SOCKETS%
-	static string ReplaceSockets(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceSockets(ReplaceContext& ctx, const ReplacementValue& val);
 	// %RUNENUM%
-	static string ReplaceRuneNumber(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceRuneNumber(ReplaceContext& ctx, const ReplacementValue& val);
 	// %RUNNAME%
-	static string ReplaceRuneName(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceRuneName(ReplaceContext& ctx, const ReplacementValue& val);
 	// %GEMLEVEL%
-	static string ReplaceGemLevel(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceGemLevel(ReplaceContext& ctx, const ReplacementValue& val);
 	// %GEMTYPE%
-	static string ReplaceGemType(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceGemType(ReplaceContext& ctx, const ReplacementValue& val);
 	// %ILVL%
-	static string ReplaceItemLevel(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceItemLevel(ReplaceContext& ctx, const ReplacementValue& val);
 	// %ALVL%
-	static string ReplaceAffixLevel(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceAffixLevel(ReplaceContext& ctx, const ReplacementValue& val);
 	// %CRAFTALVL%
-	static string ReplaceCraftLevel(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceCraftLevel(ReplaceContext& ctx, const ReplacementValue& val);
+	// %REROLLALVL%
+	static wstring ReplaceRerollLevel(ReplaceContext& ctx, const ReplacementValue& val);
 	// %LVLREQ%
-	static string ReplaceLevelRequirement(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceLevelRequirement(ReplaceContext& ctx, const ReplacementValue& val);
 	// %WPNSPD%
-	static string ReplaceWeaponSpeed(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceWeaponSpeed(ReplaceContext& ctx, const ReplacementValue& val);
 	// %RANGE%
-	static string ReplaceRange(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceRange(ReplaceContext& ctx, const ReplacementValue& val);
 	// %CODE%
-	static string ReplaceCode(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceCode(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BUYPRICE%
+	static wstring ReplaceBuyPrice(ReplaceContext& ctx, const ReplacementValue& val);
 	// %PRICE%
-	static string ReplacePrice(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplacePrice(ReplaceContext& ctx, const ReplacementValue& val);
 	// %QTY%
-	static string ReplaceQuantity(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceQuantity(ReplaceContext& ctx, const ReplacementValue& val);
 	// %RES%
-	static string ReplaceAllResist(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceAllResist(ReplaceContext& ctx, const ReplacementValue& val);
 	// enhance damage or enhance defense %ED%
-	static string ReplaceEnhancedD(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceEnhancedD(ReplaceContext& ctx, const ReplacementValue& val);
+	// %CS%
+	static wstring ReplaceConditionalSpace(ReplaceContext& ctx, const ReplacementValue& val);
 	// %CL%
-	static string ReplaceConditionalLine(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceConditionalLine(ReplaceContext& ctx, const ReplacementValue& val);
 	// %NL%
-	static string ReplaceNewLine(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceNewLine(ReplaceContext& ctx, const ReplacementValue& val);
+	// %REQDEX%
+	static wstring ReplaceReqDex(ReplaceContext& ctx, const ReplacementValue& val);
+	// %REQSTR%
+	static wstring ReplaceReqStr(ReplaceContext& ctx, const ReplacementValue& val);
+	// %REQLVL%
+	static wstring ReplaceReqLvl(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMINONEH%
+	static wstring ReplaceBaseMin1h(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMAXONEH%
+	static wstring ReplaceBaseMax1h(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMINTWOH%
+	static wstring ReplaceBaseMin2h(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMAXTWOH%
+	static wstring ReplaceBaseMax2h(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMINTHROW%
+	static wstring ReplaceBaseMinThrow(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMAXTHROW%
+	static wstring ReplaceBaseMaxThrow(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMINKICK%
+	static wstring ReplaceBaseMinKick(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMAXKICK%
+	static wstring ReplaceBaseMaxKick(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMINSMITE%
+	static wstring ReplaceBaseMinSmite(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEMAXSMITE%
+	static wstring ReplaceBaseMaxSmite(ReplaceContext& ctx, const ReplacementValue& val);
+	// %BASEBLOCK%
+	static wstring ReplaceBaseBlock(ReplaceContext& ctx, const ReplacementValue& val);
+	// %ALLATTRIB%
+	static wstring ReplaceAllAttributes(ReplaceContext& ctx, const ReplacementValue& val);
+	// %MAXRES%
+	static wstring ReplaceMaxRes(ReplaceContext& ctx, const ReplacementValue& val);
+	// %PLUSDEF%
+	static wstring ReplacePlusDef(ReplaceContext& ctx, const ReplacementValue& val);
+	// %UPDEX%
+	static wstring ReplaceUpDex(ReplaceContext& ctx, const ReplacementValue& val);
+	// %UPSTR%
+	static wstring ReplaceUpStr(ReplaceContext& ctx, const ReplacementValue& val);
+	// %UPLVL%
+	static wstring ReplaceUpLvl(ReplaceContext& ctx, const ReplacementValue& val);
+	// %MAXSOCKETS%
+	static wstring ReplaceMaxSockets(ReplaceContext& ctx, const ReplacementValue& val);
+	// %MINDMG%
+	static wstring ReplaceMinDamage(ReplaceContext& ctx, const ReplacementValue& val);
+	// %MAXDMG%
+	static wstring ReplaceMaxDamage(ReplaceContext& ctx, const ReplacementValue& val);
 
 	// DYNAMIC keywords
 	// %STAT%
-	static string ReplaceStat(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceStat(ReplaceContext& ctx, const ReplacementValue& val);
 	// %SK%
-	static string ReplaceSingleSkill(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceSingleSkill(ReplaceContext& ctx, const ReplacementValue& val);
 	// %OS%
-	static string ReplaceNonClassSkill(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceNonClassSkill(ReplaceContext& ctx, const ReplacementValue& val);
 	// %CLSK%
-	static string ReplaceClassSkill(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceClassSkill(ReplaceContext& ctx, const ReplacementValue& val);
 	// %TABSK%
-	static string ReplaceSkillTab(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceSkillTab(ReplaceContext& ctx, const ReplacementValue& val);
 	// %CHARSTAT%
-	static string ReplaceCharStat(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceCharStat(ReplaceContext& ctx, const ReplacementValue& val);
 	// %MULTI%
-	static string ReplaceMulti(ReplaceContext& ctx, const ReplacementValue& val);
+	static wstring ReplaceMulti(ReplaceContext& ctx, const ReplacementValue& val);
 
 	// COLOR keywords
-	static function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceGlideDependentColor(const string& primary, const string& secondary);
-	static function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceHDTextDependentColor(const string& primary, const string& secondary);
-	static function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceBindString(const string& str);
-	static function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceNamedStat(int id);
+	static function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceGlideDependentColor(const wstring& primary, const wstring& secondary);
+	static function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceHDTextDependentColor(const wstring& primary, const wstring& secondary);
+	static function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceBindString(const wstring& str);
+	static function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceNamedStat(int id);
+	static function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplaceBindFormula(shared_ptr<Formula<FormulaContext>> f);
 };
 
-unordered_map<string, ReplacementSpec> ReplacementMap = {
+unordered_map<wstring, ReplacementSpec> ReplacementMap = {
 	// STATIC
-	{ "NAME", { 0, ReplacementSpec::ReplaceName } },
-	{ "SOCKETS", { 0, ReplacementSpec::ReplaceSockets } },
-	{ "RUNENUM", { 0, ReplacementSpec::ReplaceRuneNumber } },
-	{ "RUNENAME", { 0, ReplacementSpec::ReplaceRuneName } },
-	{ "GEMLEVEL", { 0, ReplacementSpec::ReplaceGemLevel } },
-	{ "GEMTYPE", { 0, ReplacementSpec::ReplaceGemType } },
-	{ "ILVL", { 0, ReplacementSpec::ReplaceItemLevel } },
-	{ "ALVL", { 0, ReplacementSpec::ReplaceAffixLevel } },
-	{ "CRAFTALVL", { 0, ReplacementSpec::ReplaceCraftLevel } },
-	{ "LVLREQ", { 0, ReplacementSpec::ReplaceLevelRequirement } },
-	{ "WPNSPD", { 0, ReplacementSpec::ReplaceWeaponSpeed } },
-	{ "RANGE", { 0, ReplacementSpec::ReplaceRange } },
-	{ "CODE", { 0, ReplacementSpec::ReplaceCode } },
+	{ L"NAME", { 0, ReplacementSpec::ReplaceName } },
+	{ L"BASENAME", { 0, ReplacementSpec::ReplaceBaseName } },
+	{ L"SOCKETS", { 0, ReplacementSpec::ReplaceSockets } },
+	{ L"RUNENUM", { 0, ReplacementSpec::ReplaceRuneNumber } },
+	{ L"RUNENAME", { 0, ReplacementSpec::ReplaceRuneName } },
+	{ L"GEMLEVEL", { 0, ReplacementSpec::ReplaceGemLevel } },
+	{ L"GEMTYPE", { 0, ReplacementSpec::ReplaceGemType } },
+	{ L"ILVL", { 0, ReplacementSpec::ReplaceItemLevel } },
+	{ L"ALVL", { 0, ReplacementSpec::ReplaceAffixLevel } },
+	{ L"CRAFTALVL", { 0, ReplacementSpec::ReplaceCraftLevel } },
+	{ L"REROLLALVL", {0, ReplacementSpec::ReplaceRerollLevel }},
+	{ L"LVLREQ", { 0, ReplacementSpec::ReplaceLevelRequirement } },
+	{ L"WPNSPD", { 0, ReplacementSpec::ReplaceWeaponSpeed } },
+	{ L"RANGE", { 0, ReplacementSpec::ReplaceRange } },
+	{ L"CODE", { 0, ReplacementSpec::ReplaceCode } },
 	// %LBRACE%
-	{ "LBRACE", { 0, ReplacementSpec::ReplaceBindString("{") } },
+	{ L"LBRACE", { 0, ReplacementSpec::ReplaceBindString(L"{") } },
 	// %RBRACE%
-	{ "RBRACE", { 0, ReplacementSpec::ReplaceBindString("}") } },
-	{ "PRICE", { 0, ReplacementSpec::ReplacePrice } },
-	{ "QTY", { 0, ReplacementSpec::ReplaceQuantity } },
-	{ "RES", { 0, ReplacementSpec::ReplaceAllResist } },
-	{ "ED", { 0, ReplacementSpec::ReplaceEnhancedD } },
-	{ "CL", { 0, ReplacementSpec::ReplaceConditionalLine } },
-	{ "NL", { 0, ReplacementSpec::ReplaceNewLine } },
+	{ L"RBRACE", { 0, ReplacementSpec::ReplaceBindString(L"}") } },
+	// %PERCENT%
+	{ L"PERCENT", { 0, ReplacementSpec::ReplaceBindString(L"%") } },
+	{ L"BUYPRICE", { 0, ReplacementSpec::ReplaceBuyPrice } },
+	{ L"SELLPRICE", { 0, ReplacementSpec::ReplacePrice } },
+	{ L"PRICE", { 0, ReplacementSpec::ReplacePrice } },
+	{ L"QTY", { 0, ReplacementSpec::ReplaceQuantity } },
+	{ L"RES", { 0, ReplacementSpec::ReplaceAllResist } },
+	{ L"ED", { 0, ReplacementSpec::ReplaceEnhancedD } },
+	{ L"CS", { 0, ReplacementSpec::ReplaceConditionalSpace } },
+	{ L"CL", { 0, ReplacementSpec::ReplaceConditionalLine } },
+	{ L"NL", { 0, ReplacementSpec::ReplaceNewLine } },
+	{ L"REQSTR", { 0, ReplacementSpec::ReplaceReqStr } },
+	{ L"REQDEX", { 0, ReplacementSpec::ReplaceReqDex } },
+	{ L"REQLVL", { 0, ReplacementSpec::ReplaceReqLvl } },
+	{ L"BASEMINONEH", { 0, ReplacementSpec::ReplaceBaseMin1h } },
+	{ L"BASEMAXONEH", { 0, ReplacementSpec::ReplaceBaseMax1h } },
+	{ L"BASEMINTWOH", { 0, ReplacementSpec::ReplaceBaseMin2h } },
+	{ L"BASEMAXTWOH", { 0, ReplacementSpec::ReplaceBaseMax2h } },
+	{ L"BASEMINTHROW", { 0, ReplacementSpec::ReplaceBaseMinThrow } },
+	{ L"BASEMAXTHROW", { 0, ReplacementSpec::ReplaceBaseMaxThrow } },
+	{ L"BASEMINKICK", { 0, ReplacementSpec::ReplaceBaseMinKick } },
+	{ L"BASEMAXKICK", { 0, ReplacementSpec::ReplaceBaseMaxKick } },
+	{ L"BASEMINSMITE", { 0, ReplacementSpec::ReplaceBaseMinSmite } },
+	{ L"BASEMAXSMITE", { 0, ReplacementSpec::ReplaceBaseMaxSmite } },
+	{ L"BASEBLOCK", { 0, ReplacementSpec::ReplaceBaseBlock } },
+	{ L"ALLATTRIB", { 0, ReplacementSpec::ReplaceAllAttributes } },
+	{ L"MAXRES", { 0, ReplacementSpec::ReplaceMaxRes } },
+	{ L"PLUSDEF", { 0, ReplacementSpec::ReplacePlusDef } },
+	{ L"UPSTR", { 0, ReplacementSpec::ReplaceUpStr } },
+	{ L"UPDEX", { 0, ReplacementSpec::ReplaceUpDex } },
+	{ L"UPLVL", { 0, ReplacementSpec::ReplaceUpLvl } },
+	{ L"MAXSOCKETS", { 0, ReplacementSpec::ReplaceMaxSockets } },
+	{ L"MINDMG", { 0, ReplacementSpec::ReplaceMinDamage } },
+	{ L"MAXDMG", { 0, ReplacementSpec::ReplaceMaxDamage } },
 	// named stats
-	{ "EDEF", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ENHANCEDDEFENSE) } },
-	{ "EDAM", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ENHANCEDMAXIMUMDAMAGE) } },
-	{ "DEF", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DEFENSE) } },
-	{ "FRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FIRERESIST) } },
-	{ "CRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_COLDRESIST) } },
-	{ "LRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_LIGHTNINGRESIST) } },
-	{ "PRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_POISONRESIST) } },
-	{ "IAS", { 0, ReplacementSpec::ReplaceNamedStat(STAT_IAS) } },
-	{ "FCR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERCAST) } },
-	{ "FHR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERHITRECOVERY) } },
-	{ "FBR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERBLOCK) } },
-	{ "LIFE", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAXHP) } },
-	{ "MANA", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAXMANA) } },
-	{ "ARPER", { 0, ReplacementSpec::ReplaceNamedStat(STAT_TOHITPERCENT) } },
-	{ "MFIND", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAGICFIND) } },
-	{ "GFIND", { 0, ReplacementSpec::ReplaceNamedStat(STAT_GOLDFIND) } },
-	{ "STR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_STRENGTH) } },
-	{ "DEX", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DEXTERITY) } },
-	{ "FRW", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERRUNWALK) } },
-	{ "MINDMG", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MINIMUMDAMAGE) } },
-	{ "MAXDMG", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAXIMUMDAMAGE) } },
-	{ "AR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ATTACKRATING) } },
-	{ "DTM", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DAMAGETOMANA) } },
-	{ "MAEK", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MANAAFTEREACHKILL) } },
-	{ "REPLIFE", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPLENISHLIFE) } },
-	{ "REPQUANT", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPLENISHESQUANTITY) } },
-	{ "REPAIR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPAIRSDURABILITY) } },
+	{ L"EDEF", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ENHANCEDDEFENSE) } },
+	{ L"EDAM", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ENHANCEDMAXIMUMDAMAGE) } },
+	{ L"DEF", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DEFENSE) } },
+	{ L"FRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FIRERESIST) } },
+	{ L"CRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_COLDRESIST) } },
+	{ L"LRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_LIGHTNINGRESIST) } },
+	{ L"PRES", { 0, ReplacementSpec::ReplaceNamedStat(STAT_POISONRESIST) } },
+	{ L"IAS", { 0, ReplacementSpec::ReplaceNamedStat(STAT_IAS) } },
+	{ L"FCR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERCAST) } },
+	{ L"FHR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERHITRECOVERY) } },
+	{ L"FBR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERBLOCK) } },
+	{ L"LIFE", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAXHP) } },
+	{ L"MANA", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAXMANA) } },
+	{ L"ARPER", { 0, ReplacementSpec::ReplaceNamedStat(STAT_TOHITPERCENT) } },
+	{ L"MFIND", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MAGICFIND) } },
+	{ L"GFIND", { 0, ReplacementSpec::ReplaceNamedStat(STAT_GOLDFIND) } },
+	{ L"STR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_STRENGTH) } },
+	{ L"DEX", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DEXTERITY) } },
+	{ L"FRW", { 0, ReplacementSpec::ReplaceNamedStat(STAT_FASTERRUNWALK) } },
+	{ L"AR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_ATTACKRATING) } },
+	{ L"DTM", { 0, ReplacementSpec::ReplaceNamedStat(STAT_DAMAGETOMANA) } },
+	{ L"MAEK", { 0, ReplacementSpec::ReplaceNamedStat(STAT_MANAAFTEREACHKILL) } },
+	{ L"REPLIFE", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPLENISHLIFE) } },
+	{ L"REPQUANT", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPLENISHESQUANTITY) } },
+	{ L"REPAIR", { 0, ReplacementSpec::ReplaceNamedStat(STAT_REPAIRSDURABILITY) } },
 	// DYNAMIC
-	{ "STAT", { 1, ReplacementSpec::ReplaceStat } },
-	{ "SK", { 1, ReplacementSpec::ReplaceSingleSkill } },
-	{ "OS", { 1, ReplacementSpec::ReplaceNonClassSkill } },
-	{ "CLSK", { 1, ReplacementSpec::ReplaceClassSkill } },
-	{ "TABSK", { 1, ReplacementSpec::ReplaceSkillTab } },
-	{ "CHARSTAT", { 1, ReplacementSpec::ReplaceCharStat } },
-	{ "MULTI", { 2, ReplacementSpec::ReplaceMulti } },
+	{ L"STAT", { 1, ReplacementSpec::ReplaceStat } },
+	{ L"SK", { 1, ReplacementSpec::ReplaceSingleSkill } },
+	{ L"OS", { 1, ReplacementSpec::ReplaceNonClassSkill } },
+	{ L"CLSK", { 1, ReplacementSpec::ReplaceClassSkill } },
+	{ L"TABSK", { 1, ReplacementSpec::ReplaceSkillTab } },
+	{ L"CHARSTAT", { 1, ReplacementSpec::ReplaceCharStat } },
+	{ L"MULTI", { 2, ReplacementSpec::ReplaceMulti } },
 	// COLORS
-	{ "BLACK", { 0, ReplacementSpec::ReplaceGlideDependentColor("\xFF" "c\x02", "ÿc6") }},
-	{ "CORAL", { 0, ReplacementSpec::ReplaceGlideDependentColor("\xFF" "c\x06", "ÿc1") }},
-	{ "SAGE", { 0, ReplacementSpec::ReplaceGlideDependentColor("\xFF" "c\x07", "ÿc2") }},
-	{ "TEAL", { 0, ReplacementSpec::ReplaceGlideDependentColor("\xFF" "c\x09", "ÿc3") }},
-	{ "LIGHT_GRAY", { 0, ReplacementSpec::ReplaceGlideDependentColor("\xFF" "c\x0C", "ÿc5") }},
-	{ "FULL_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor("\xFF" "c\x40", "") }},
-	{ "THREE_FOURTHS_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor("\xFF" "c\x41", "") }},
-	{ "HALF_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor("\xFF" "c\x42", "") }},
-	{ "QUARTER_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor("\xFF" "c\x43", "") }},
-	{ "WHITE", { 0, ReplacementSpec::ReplaceBindString("ÿc0") } },
-	{ "RED", { 0, ReplacementSpec::ReplaceBindString("ÿc1") } },
-	{ "GREEN", { 0, ReplacementSpec::ReplaceBindString("ÿc2") } },
-	{ "BLUE", { 0, ReplacementSpec::ReplaceBindString("ÿc3") } },
-	{ "GOLD", { 0, ReplacementSpec::ReplaceBindString("ÿc4") } },
-	{ "GRAY", { 0, ReplacementSpec::ReplaceBindString("ÿc5") } },
-	{ "TAN", { 0, ReplacementSpec::ReplaceBindString("ÿc7") } },
-	{ "ORANGE", { 0, ReplacementSpec::ReplaceBindString("ÿc8") } },
-	{ "YELLOW", { 0, ReplacementSpec::ReplaceBindString("ÿc9") } },
-	{ "PURPLE", { 0, ReplacementSpec::ReplaceBindString("ÿc;") } },
-	{ "DARK_GREEN", { 0, ReplacementSpec::ReplaceBindString("ÿc:") } },
+	{ L"BLACK", { 0, ReplacementSpec::ReplaceGlideDependentColor(L"\xFF" L"c\x02", L"\xFF" L"c6") }},
+	{ L"CORAL", { 0, ReplacementSpec::ReplaceGlideDependentColor(L"\xFF" L"c\x06", L"\xFF" L"c1") }},
+	{ L"SAGE", { 0, ReplacementSpec::ReplaceGlideDependentColor(L"\xFF" L"c\x07", L"\xFF" L"c2") }},
+	{ L"TEAL", { 0, ReplacementSpec::ReplaceGlideDependentColor(L"\xFF" L"c\x09", L"\xFF" L"c3") }},
+	{ L"LIGHT_GRAY", { 0, ReplacementSpec::ReplaceGlideDependentColor(L"\xFF" L"c\x0C", L"\xFF" L"c5") }},
+	{ L"FULL_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor(L"\xFF" L"c\x40", L"") }},
+	{ L"THREE_FOURTHS_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor(L"\xFF" L"c\x41", L"") }},
+	{ L"HALF_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor(L"\xFF" L"c\x42", L"") }},
+	{ L"QUARTER_TRANS", { 0, ReplacementSpec::ReplaceHDTextDependentColor(L"\xFF" L"c\x43", L"") }},
+	{ L"WHITE", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c0") } },
+	{ L"RED", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c1") } },
+	{ L"GREEN", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c2") } },
+	{ L"BLUE", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c3") } },
+	{ L"GOLD", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c4") } },
+	{ L"GRAY", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c5") } },
+	{ L"TAN", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c7") } },
+	{ L"ORANGE", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c8") } },
+	{ L"YELLOW", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c9") } },
+	{ L"PURPLE", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c;") } },
+	{ L"DARK_GREEN", { 0, ReplacementSpec::ReplaceBindString(L"\xFF" L"c:") } },
 };
 
-regex ReplacementRegex("%([A-Z_]+)(?:(\\d{1,9})(?:,(\\d{1,9}))?)?%", regex::ECMAScript);
-vector<ReplacementValue> BuildReplacementActions(const string& action)
+unordered_map<wstring, ReplacementSpec> FormulaReplacementMap;
+
+wregex ReplacementRegex(L"%([A-Z_]+)(?:(\\d{1,9})(?:,(\\d{1,9}))?)?%", wregex::ECMAScript);
+vector<ReplacementValue> BuildReplacementActions(const wstring& action)
 {
 	vector<ReplacementValue> res;
-	smatch match;
+	wsmatch match;
 
 	const auto begin = action.begin();
 	size_t lastIndex = 0;
@@ -996,17 +1241,20 @@ vector<ReplacementValue> BuildReplacementActions(const string& action)
 	return res;
 }
 
-ReplacementValue ReplacementSpec::MakeReplacementValue(const string& str)
+ReplacementValue ReplacementSpec::MakeReplacementValue(const wstring& str)
 {
 	return ReplacementValue(str, 0, 0, ReplacementSpec::ReplaceConst);
 }
 
-ReplacementValue ReplacementSpec::MakeReplacementValue(const smatch& match, bool& fail)
+ReplacementValue ReplacementSpec::MakeReplacementValue(const wsmatch& match, bool& fail)
 {
-	const auto& spec = ReplacementMap.find(match[1]);
+	auto spec = ReplacementMap.find(match[1]);
 	if (spec == ReplacementMap.end()) {
-		fail = true;
-		return ReplacementValue(match.str(), 0, 0, ReplacementSpec::ReplaceNone);
+		spec = FormulaReplacementMap.find(match[1]);
+		if (spec == FormulaReplacementMap.end()) {
+			fail = true;
+			return ReplacementValue(match.str(), 0, 0, ReplacementSpec::ReplaceNone);
+		}
 	}
 	const auto& replacer = spec->second;
 	const int count = (match[2].length() != 0) + (match[3].length() != 0);
@@ -1015,35 +1263,60 @@ ReplacementValue ReplacementSpec::MakeReplacementValue(const smatch& match, bool
 	}
 	int param1 = match[2].length() > 0 ? stoi(match[2].str()) : 0;
 	int param2 = match[3].length() > 0 ? stoi(match[3].str()) : 0;
-	return ReplacementValue("", param1, param2, replacer.fn);
+	return ReplacementValue(L"", param1, param2, replacer.fn);
 }
 
-function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceNamedStat(int id)
+function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceNamedStat(int id)
 {
-	ReplacementValue rep("", id, 0, ReplacementSpec::ReplaceNone);
-	return [rep](ReplaceContext& ctx, const ReplacementValue& val) -> string {
+	ReplacementValue rep(L"", id, 0, ReplacementSpec::ReplaceNone);
+	return [rep](ReplaceContext& ctx, const ReplacementValue& val) -> wstring {
 		return ReplacementSpec::ReplaceStat(ctx, rep);
 	};
 }
 
-function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceBindString(const std::string& str)
+function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceBindString(const std::wstring& str)
 {
-	return [str](ReplaceContext& ctx, const ReplacementValue& val) -> string {
+	return [str](ReplaceContext& ctx, const ReplacementValue& val) -> wstring {
 		return str;
 	};
 }
 
-string ReplacementSpec::ReplaceNone(ReplaceContext& ctx, const ReplacementValue& val)
+function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceBindFormula(shared_ptr<Formula<FormulaContext>> f)
 {
-	return "";
+	return [f](ReplaceContext& ctx, const ReplacementValue& val) -> wstring {
+		float out = 0.0f;
+		if (f->execute(ctx.info, out) != FormulaStatus::OK || !std::isfinite(out) || std::abs(out) > 2147483648.0f)
+		{
+			return L"f_err";
+		}
+		wchar_t buffer[64];
+		int len = swprintf(buffer, 64, L"%.2f", out);
+		if (len < 3) {
+			return L"f_err";
+		}
+		// remove .00
+		if (buffer[len - 1] == L'0' && buffer[len - 2] == L'0') {
+			buffer[len - 3] = L'\0';
+		}
+		// remove a single trailing 0
+		else if (buffer[len - 1] == L'0') {
+			buffer[len - 1] = L'\0';
+		}
+		return buffer;
+	};
 }
 
-string ReplacementSpec::ReplaceConst(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceNone(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	return L"";
+}
+
+wstring ReplacementSpec::ReplaceConst(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return val.str;
 }
 
-string ReplacementSpec::ReplaceName(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceName(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	if (ctx.name.size() > 1023) {
 		ctx.name.resize(1023);
@@ -1051,123 +1324,317 @@ string ReplacementSpec::ReplaceName(ReplaceContext& ctx, const ReplacementValue&
 	return ctx.name;
 }
 
-string ReplacementSpec::ReplaceSockets(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceBaseName(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	if (ctx.info == nullptr || ctx.info->attrs == nullptr) {
+		return L"";
+	}
+
+	return MaybeStripColorPrefixW(ctx.info->attrs->name);
+}
+
+wstring ReplacementSpec::ReplaceSockets(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarSockets(ctx.info);
 }
 
-string ReplacementSpec::ReplaceRuneNumber(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceRuneNumber(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarRuneNum(ctx.info);
 }
 
-string ReplacementSpec::ReplaceRuneName(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceRuneName(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarRuneName(ctx.info);
 }
 
-string ReplacementSpec::ReplaceGemLevel(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceGemLevel(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarGemLevel(ctx.info);
 }
 
-string ReplacementSpec::ReplaceGemType(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceGemType(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarGemType(ctx.info);
 }
 
-string ReplacementSpec::ReplaceItemLevel(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceItemLevel(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarIlvl(ctx.info);
 }
 
-string ReplacementSpec::ReplaceAffixLevel(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceAffixLevel(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarAlvl(ctx.info);
 }
 
-string ReplacementSpec::ReplaceCraftLevel(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceCraftLevel(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarCraftAlvl(ctx.info);
 }
 
-string ReplacementSpec::ReplaceLevelRequirement(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceRerollLevel(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	return NameVarRerollAlvl(ctx.info);
+}
+
+wstring ReplacementSpec::ReplaceLevelRequirement(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarLevelReq(ctx.info);
 }
 
-string ReplacementSpec::ReplaceWeaponSpeed(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceWeaponSpeed(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarWeaponSpeed(ctx.text);
 }
 
-string ReplacementSpec::ReplaceRange(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceRange(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarRangeAdder(ctx.text);
 }
 
-string ReplacementSpec::ReplaceCode(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceCode(ReplaceContext& ctx, const ReplacementValue& val)
 {
-	return ctx.info->itemCode;
+	return AnsiToWide(ctx.info->itemCode);
 }
 
-string ReplacementSpec::ReplacePrice(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceBuyPrice(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	return NameVarBuyValue(ctx.info, ctx.text);
+}
+
+wstring ReplacementSpec::ReplacePrice(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarSellValue(ctx.info, ctx.text);
 }
 
-string ReplacementSpec::ReplaceQuantity(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceQuantity(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarQty(ctx.info);
 }
 
-string ReplacementSpec::ReplaceAllResist(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceAllResist(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarAllRes(ctx.info);
 }
 
-string ReplacementSpec::ReplaceEnhancedD(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceEnhancedD(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	return NameVarEd(ctx.info);
 }
 
-string ReplacementSpec::ReplaceConditionalLine(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceReqStr(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::STRENGTH, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceReqDex(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::DEXTERITY, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceReqLvl(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::LEVEL, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMin1h(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MIN1H, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMax1h(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAX1H, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMin2h(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MIN2H, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMax2h(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAX2H, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMinThrow(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINTHROW, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMaxThrow(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXTHROW, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMinKick(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINKICK, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMaxKick(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXKICK, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMinSmite(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINSMITE, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseMaxSmite(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXSMITE, ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceBaseBlock(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", BaseBlockCondition::GetValue(ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceAllAttributes(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", AllAttributesCondition::GetValue(ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceMaxRes(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", MaxResCondition::GetValue(ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplacePlusDef(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", PlusDefCondition::GetValue(ctx.info));
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceUpStr(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = UpStatCondition::GetValue(UpStatCondition::UpStatType::STRENGTH, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceUpDex(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = UpStatCondition::GetValue(UpStatCondition::UpStatType::DEXTERITY, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceUpLvl(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto req = UpStatCondition::GetValue(UpStatCondition::UpStatType::LEVEL, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", req);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceMaxSockets(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	wchar_t buffer[16];
+	BYTE max = MaxSocketsCondition::GetValue(ctx.info);
+	swprintf(buffer, 16, L"%d", max);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceMinDamage(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto dmg = MinMaxDamageCondition::GetValue(MinMaxDamageCondition::DamageType::MIN, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", dmg);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceMaxDamage(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	auto dmg = MinMaxDamageCondition::GetValue(MinMaxDamageCondition::DamageType::MAX, ctx.info);
+	wchar_t buffer[16];
+	swprintf(buffer, 16, L"%d", dmg);
+	return buffer;
+}
+
+wstring ReplacementSpec::ReplaceConditionalSpace(ReplaceContext& ctx, const ReplacementValue& val)
+{
+	return L"\b";
+}
+
+wstring ReplacementSpec::ReplaceConditionalLine(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	if (ctx.blockedNL) {
-		return "";
+		return L"";
 	}
 	if (!ctx.limit || ctx.nlAllowed) {
-		return "\r";
+		return L"\r";
 	}
 	if (ctx.nmagStaffmod) {
 		ctx.blockedNL = true;
-		return "\n";
+		return L"\r";
 	}
-	return "";
+	return L"";
 }
 
-string ReplacementSpec::ReplaceNewLine(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceNewLine(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	if (ctx.blockedNL) {
-		return "";
+		return L"";
 	}
 	if (!ctx.limit || ctx.nlAllowed) {
-		return "\n";
+		return L"\n";
 	}
 	if (ctx.nmagStaffmod) {
 		ctx.blockedNL = true;
-		return "\n";
+		return L"\n";
 	}
-	return "";
+	return L"";
 }
 
-string ReplacementSpec::ReplaceStat(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceStat(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto stat = val.param1;
 	if (stat > STAT_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, stat, 0);
 	// Hp and mana need adjusting
 	if (stat == STAT_MAXHP || stat == STAT_MAXMANA)
@@ -1182,122 +1649,127 @@ string ReplacementSpec::ReplaceStat(ReplaceContext& ctx, const ReplacementValue&
 		stat == STAT_MINIMUMDAMAGE ||				// return base min 1h weapon damage
 		stat == STAT_MAXIMUMDAMAGE ||				// return base max 1h weapon damage
 		stat == STAT_SECONDARYMINIMUMDAMAGE ||		// return base min 2h weapon damage
-		stat == STAT_SECONDARYMAXIMUMDAMAGE			// return base max 2h weapon damage
+		stat == STAT_SECONDARYMAXIMUMDAMAGE	||		// return base max 2h weapon damage
+		stat == STAT_MINIMUMTHROWINGDAMAGE ||		// return min throw weapon damage
+		stat == STAT_MAXIMUMTHROWINGDAMAGE		    // return max throw weapon damage
 		)
 	{
 		value = GetStatFromList(ctx.info, stat);
 	}
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceSingleSkill(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceSingleSkill(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto skill = val.param1;
 	if (skill > SKILL_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, STAT_SINGLESKILL, skill);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceNonClassSkill(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceNonClassSkill(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto skill = val.param1;
 	if (skill > SKILL_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, STAT_NONCLASSSKILL, skill);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceClassSkill(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceClassSkill(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto skill = val.param1;
 	if (skill > SKILL_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, STAT_CLASSSKILLS, skill);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceSkillTab(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceSkillTab(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto skill = val.param1;
 	if (skill > SKILL_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, STAT_SKILLTAB, skill);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceCharStat(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceCharStat(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto stat = val.param1;
 	if (stat > STAT_MAX) {
-		return "";
+		return L"";
 	}
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), stat, 0);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-string ReplacementSpec::ReplaceMulti(ReplaceContext& ctx, const ReplacementValue& val)
+wstring ReplacementSpec::ReplaceMulti(ReplaceContext& ctx, const ReplacementValue& val)
 {
 	const auto stat1 = val.param1;
 	if (stat1 > STAT_MAX) {
-		return "";
+		return L"";
 	}
 	const auto stat2 = val.param2;
-	char buffer[16] = { 0 };
+	wchar_t buffer[16] = { 0 };
 	auto value = D2COMMON_GetUnitStat(ctx.info->item, stat1, stat2);
-	sprintf_s(buffer, "%d", value);
+	swprintf(buffer, 16, L"%d", value);
 	return buffer;
 }
 
-function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceGlideDependentColor(const string& primary, const string& secondary)
+function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceGlideDependentColor(const wstring& primary, const wstring& secondary)
 {
 	return [primary, secondary](ReplaceContext& ctx, const ReplacementValue& val) {
 		return *p_D2GFX_RenderMode != 4 ? secondary : primary;
 		};
 }
 
-function<string(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceHDTextDependentColor(const string& primary, const string& secondary)
+function<wstring(ReplaceContext& ctx, const ReplacementValue& val)> ReplacementSpec::ReplaceHDTextDependentColor(const wstring& primary, const wstring& secondary)
 {
 	return [primary, secondary](ReplaceContext& ctx, const ReplacementValue& val) {
 		return (!App.d2gl.usingD2GL.value && !App.d2gl.usingHDText.value) ? secondary : primary;
 		};
 }
 
-ReplaceContext::ReplaceContext(UnitItemInfo* info, string name, bool limit) :
+ReplaceContext::ReplaceContext(UnitItemInfo* info, wstring name, bool limit) :
 	info(info),
 	name(name),
 	limit(limit),
 	blockedNL(false) {
 	text = D2COMMON_GetItemText(info->item->dwTxtFileNo);
 	inShop = (info->item->pItemData->pOwnerInventory != 0 && // Skip on ground items
+		info->item->pItemData->pOwnerInventory->pOwner != 0 &&
 		find(begin(ShopNPCs), end(ShopNPCs), info->item->pItemData->pOwnerInventory->pOwner->dwTxtFileNo) != end(ShopNPCs));
 	nlAllowed = ((info->item->pItemData->dwFlags & ITEM_IDENTIFIED) > 0 &&
 		(info->item->pItemData->dwQuality >= ITEM_QUALITY_MAGIC || (info->item->pItemData->dwFlags & ITEM_RUNEWORD) > 0)) ||
 		inShop;
 
-	// Check if non-mag item capable of having staffmods
+	// Check if non-mag item capable of having staffmods or similar mods
 	nmagStaffmod = ((info->item->pItemData->dwQuality == ITEM_QUALITY_INFERIOR ||
 		info->item->pItemData->dwQuality == ITEM_QUALITY_NORMAL ||
 		info->item->pItemData->dwQuality == ITEM_QUALITY_SUPERIOR) &&
-		info->attrs->staffmodClass < CLASS_NA);
+		(info->attrs->staffmodClass < CLASS_NA ||
+		(text->wautoprefix > 0 && text->wautoprefix != 308) ||
+		(info->item->pItemData->dwQuality == ITEM_QUALITY_SUPERIOR)));
 }
 
-string ReplacementValue::Replace(ReplaceContext& ctx) const
+wstring ReplacementValue::Replace(ReplaceContext& ctx) const
 {
 	return fn(ctx, *this);
 }
@@ -1314,7 +1786,7 @@ BYTE GetGemLevel(ItemAttributes* attrs)
 	return 0;
 }
 
-char* GetGemLevelString(BYTE level) { return GemLevels[level]; }
+const wchar_t* GetGemLevelString(BYTE level) { return GemLevels[level]; }
 
 BYTE GetGemType(ItemAttributes* attrs)
 {
@@ -1328,7 +1800,7 @@ BYTE GetGemType(ItemAttributes* attrs)
 	return 0;
 }
 
-char* GetGemTypeString(BYTE type) { return GemTypes[type]; }
+const wchar_t* GetGemTypeString(BYTE type) { return GemTypes[type]; }
 
 bool IsRune(ItemAttributes* attrs)
 {
@@ -1339,10 +1811,1037 @@ bool IsRune(ItemAttributes* attrs)
 
 BYTE RuneNumberFromItemCode(char* code) { return (BYTE)(((code[1] - '0') * 10) + code[2] - '0'); }
 
-// Find the item description. This code is called only when there's a cache miss
-string ItemDescLookupCache::make_cached_T(UnitItemInfo* uInfo)
+enum PD2ItemStorageType
 {
-	ReplaceContext ctx(uInfo, "", FALSE);
+	PD2STORAGE_NORMAL = 0,
+	PD2STORAGE_COMPENDIUM_PREVIEW = 1,
+	PD2STORAGE_COMPENDIUM = 2,
+	PD2STORAGE_GUILDVAULT = 3,
+	PD2STORAGE_TROPHYCASE = 4,
+};
+
+static DWORD GetPD2ItemStorageType(UnitAny* pItem)
+{
+	return App.pd2.pd2GetItemStorageTypeImpl ? App.pd2.pd2GetItemStorageTypeImpl(pItem) : PD2STORAGE_NORMAL;
+}
+
+static bool ItemHasLocation(UnitItemInfo* uInfo, unsigned int location)
+{
+	if (!uInfo->item || !uInfo->item->pItemData)
+	{
+		return false;
+	}
+
+	UnitAny* pItem = uInfo->item;
+	ItemData* pItemData = pItem->pItemData;
+	DWORD nStorage = GetPD2ItemStorageType(pItem);
+	UnitAny* pMerc = NULL;
+	switch (location)
+	{
+	case LOCATIONFLAG_EQUIPPED:
+		return nStorage == PD2STORAGE_NORMAL &&
+			pItemData->ItemLocation == STORAGE_NULL &&
+			pItemData->BodyLocation > 0 &&
+			pItemData->pOwnerInventory &&
+			pItemData->pOwnerInventory->pOwner == D2CLIENT_GetPlayerUnit();
+	case LOCATIONFLAG_MERCEQUIPPED:
+		pMerc = GetClientMercUnit();
+		return nStorage == PD2STORAGE_NORMAL &&
+			pMerc &&
+			pItemData->ItemLocation == STORAGE_NULL &&
+			pItemData->BodyLocation > 0 &&
+			pItemData->pOwnerInventory &&
+			pItemData->pOwnerInventory->pOwner == pMerc;
+	case LOCATIONFLAG_INVENTORY:
+		return nStorage == PD2STORAGE_NORMAL &&
+			pItemData->ItemLocation == STORAGE_INVENTORY &&
+			pItem->dwMode == ITEM_MODE_INV_STASH_CUBE_STORE &&
+			pItemData->pOwnerInventory &&
+			pItemData->pOwnerInventory->pOwner == D2CLIENT_GetPlayerUnit();
+	case LOCATIONFLAG_CUBE:
+		return nStorage == PD2STORAGE_NORMAL &&
+			pItemData->ItemLocation == STORAGE_CUBE &&
+			pItemData->pOwnerInventory &&
+			pItemData->pOwnerInventory->pOwner == D2CLIENT_GetPlayerUnit();
+	case LOCATIONFLAG_STASH:
+		return nStorage == PD2STORAGE_NORMAL &&
+			pItemData->ItemLocation == STORAGE_STASH &&
+			pItemData->pOwnerInventory &&
+			pItemData->pOwnerInventory->pOwner == D2CLIENT_GetPlayerUnit();
+	case LOCATIONFLAG_GROUND:
+		return pItem->dwMode == ITEM_MODE_ON_GROUND || pItem->dwMode == ITEM_MODE_BEING_DROPPED;
+	case LOCATIONFLAG_COMPENDIUM:
+		return nStorage == PD2STORAGE_COMPENDIUM;
+	case LOCATIONFLAG_PREVIEW:
+		return nStorage == PD2STORAGE_COMPENDIUM_PREVIEW;
+	case LOCATIONFLAG_GUILDVAULT:
+		return nStorage == PD2STORAGE_GUILDVAULT;
+	case LOCATIONFLAG_TROPHYCASE:
+		return nStorage == PD2STORAGE_TROPHYCASE;
+	}
+	return false;
+}
+
+// must be lowercase
+std::unordered_map<std::wstring, FormulaVarDefinition<FormulaContext>> formulaVarDefs = {
+	{ L"stat", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto stat = ids[0];
+			return GetAdjustedUnitStat(uInfo, stat, 0);
+		}
+	} },
+	{ L"multi", { 2, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto stat = ids[0];
+			auto layer = ids[1];
+			return GetAdjustedUnitStat(uInfo, stat, layer);
+		}
+	} },
+	{ L"charstat", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto stat = ids[0];
+			return D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), stat, 0);
+		}
+	} },
+	{ L"onehand", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (code_to_dwtxtfileno.find(uInfo->itemCode) != code_to_dwtxtfileno.end()) {
+				int weapon_number = code_to_dwtxtfileno[uInfo->itemCode];
+				WeaponType weapon_type = Drawing::StatsDisplay::GetCurrentWeaponType(weapon_number);
+
+				if (weapon_type == WeaponType::kAxe ||
+					weapon_type == WeaponType::kWand ||
+					weapon_type == WeaponType::kClub ||
+					weapon_type == WeaponType::kScepter ||
+					weapon_type == WeaponType::kMace ||
+					weapon_type == WeaponType::kHammer ||
+					weapon_type == WeaponType::kSword ||
+					weapon_type == WeaponType::kKnife ||
+					weapon_type == WeaponType::kThrowing ||
+					weapon_type == WeaponType::kJavelin ||
+					weapon_type == WeaponType::kThrowingPot ||
+					weapon_type == WeaponType::kClaw1 ||
+					weapon_type == WeaponType::kClaw2 ||
+					weapon_type == WeaponType::kOrb ||
+					weapon_type == WeaponType::kAmaJav
+					) {
+					return 1;
+				}
+			}
+			return 0;
+		}
+	} },
+	{ L"twohand", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (code_to_dwtxtfileno.find(uInfo->itemCode) != code_to_dwtxtfileno.end()) {
+				int weapon_number = code_to_dwtxtfileno[uInfo->itemCode];
+				WeaponType weapon_type = Drawing::StatsDisplay::GetCurrentWeaponType(weapon_number);
+
+				if (weapon_type == WeaponType::kAxe2H ||
+					weapon_type == WeaponType::kHammer2H ||
+					weapon_type == WeaponType::kSword2H ||
+					weapon_type == WeaponType::kSpear ||
+					weapon_type == WeaponType::kPole ||
+					weapon_type == WeaponType::kStaff ||
+					weapon_type == WeaponType::kBow ||
+					weapon_type == WeaponType::kCrossbow ||
+					weapon_type == WeaponType::kAmaBow ||
+					weapon_type == WeaponType::kAmaSpear
+					) {
+					return 1;
+				}
+			}
+			return 0;
+		}
+	} },
+	{ L"allsk", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_ALLSKILLS, 0);
+		}
+	} },
+	{ L"alvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			BYTE qlvl = uInfo->attrs->qualityLevel;
+			return GetAffixLevel((BYTE)uInfo->item->pItemData->dwItemLevel, (BYTE)uInfo->attrs->qualityLevel, uInfo->attrs->magicLevel);
+		}
+	} },
+	{ L"amazon", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 0;
+		}
+	} },
+	{ L"ar", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_ATTACKRATING, 0);
+		}
+	} },
+	{ L"armor", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_ALLARMOR) != 0;
+		}
+	} },
+	{ L"arper", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_TOHITPERCENT, 0);
+		}
+	} },
+	{ L"assassin", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 6;
+		}
+	} },
+	{ L"automod", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto itemData = uInfo->item->pItemData;
+			if ((itemData->dwQuality == ITEM_QUALITY_MAGIC || itemData->dwQuality == ITEM_QUALITY_RARE) && !(itemData->dwFlags & ITEM_IDENTIFIED)) {
+				return false;
+			}
+			return itemData->wAutoPrefix - AUTOMOD_OFFSET;
+		}
+	} },
+	{ L"axe", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_AXE) != 0;
+		}
+	} },
+	{ L"bar", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_BARBARIAN_HELM) != 0;
+		}
+	} },
+	{ L"barbarian", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 4;
+		}
+	} },
+	{ L"belt", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_BELT) != 0;
+		}
+	} },
+	{ L"boots", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_BOOTS) != 0;
+		}
+	} },
+	{ L"bow", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_BOW) != 0;
+		}
+	} },
+	{ L"buyprice", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetShopPrice(D2CLIENT_GetPlayerUnit(), uInfo->item, TRANSACTIONTYPE_BUY);
+		}
+	} },
+	{ L"charm", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->miscFlags & ITEM_GROUP_CHARM) != 0;
+		}
+	} },
+	{ L"chest", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_BODY_ARMOR) != 0;
+		}
+	} },
+	{ L"chsk", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto skill = ids[0];
+			if (skill < 0 || skill > SKILL_MAX) {
+				err = FormulaStatus::MATH_ERROR;
+				return 0;
+			}
+			DWORD     value = 0;
+			Stat      aStatList[256] = { NULL };
+			StatList* pStatList = D2COMMON_GetStatList(uInfo->item, NULL, 0x40);
+			if (pStatList) {
+				DWORD dwStats = D2COMMON_CopyStatList(pStatList, (Stat*)aStatList, 256);
+				for (UINT i = 0; i < dwStats; i++) {
+					//if (aStatList[i].wStatIndex == STAT_CHARGED)
+					//	PrintText(1, "ChargedCondition::EvaluateInternal: Index=%hx, SubIndex=%hx, Value=%x", aStatList[i].wStatIndex, aStatList[i].wSubIndex, aStatList[i].dwStatValue);
+					if (aStatList[i].wStatIndex == STAT_CHARGED && (aStatList[i].wSubIndex >> 6) == skill) {
+						// 10 MSBs of subindex is the skill ID
+						unsigned int level = aStatList[i].wSubIndex & 0x3F;     // 6 LSBs are the skill level
+						value = (level > value) ? level : value; // use highest level
+					}
+				}
+			}
+			return value;
+		}
+	} },
+	{ L"circ", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_CIRCLET) != 0;
+		}
+	} },
+	{ L"cl", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto classId = ids[0];
+			switch (classId) {
+				case 1:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_DRUID_PELT) != 0;
+				}
+				case 2:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_BARBARIAN_HELM) != 0;
+				}
+				case 3:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_PALADIN_SHIELD) != 0;
+				}
+				case 4:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_NECROMANCER_SHIELD) != 0;
+				}
+				case 5:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_ASSASSIN_KATAR) != 0;
+				}
+				case 6:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_SORCERESS_ORB) != 0;
+				}
+				case 7:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_AMAZON_WEAPON) != 0;
+				}
+				default:
+				{
+					err = FormulaStatus::MATH_ERROR;
+					return 0;
+				}
+			}
+		}
+	} },
+	{ L"class", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->baseFlags & ITEM_GROUP_CLASS) != 0;
+		}
+	} },
+	{ L"clsk", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto classId = ids[0];
+			if (classId < 0 || classId >= CLASS_NA) {
+				err = FormulaStatus::MATH_ERROR;
+				return 0;
+			}
+			return GetAdjustedUnitStat(uInfo, STAT_CLASSSKILLS, classId);
+		}
+	} },
+	{ L"club", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_CLUB) != 0;
+		}
+	} },
+	{ L"clvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), STAT_LEVEL, 0);
+		}
+	} },
+	{ L"craft", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_CRAFT;
+		}
+	} },
+	{ L"craftalvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			int clvl = D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), STAT_LEVEL, 0);
+			int craft_alvl = GetAffixLevel(
+				(int)(0.5 * clvl) + (int)(0.5 * uInfo->item->pItemData->dwItemLevel),
+				uInfo->attrs->qualityLevel,
+				uInfo->attrs->magicLevel
+			);
+			return craft_alvl;
+		}
+	} },
+	{ L"compendium", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_COMPENDIUM);
+		}
+	} },
+	{ L"cres", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_COLDRESIST, 0);
+		}
+	} },
+	{ L"cube", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_CUBE);
+		}
+	} },
+	{ L"dagger", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_DAGGER) != 0;
+		}
+	} },
+	{ L"def", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_DEFENSE, 0);
+		}
+	} },
+	{ L"dex", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_DEXTERITY, 0);
+		}
+	} },
+	{ L"diff", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetDifficulty();
+		}
+	} },
+	{ L"din", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_PALADIN_SHIELD) != 0;
+		}
+	} },
+	{ L"dru", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_DRUID_PELT) != 0;
+		}
+	} },
+	{ L"druid", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 5;
+		}
+	} },
+	{ L"dtm", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_DAMAGETOMANA, 0);
+		}
+	} },
+	{ L"ed", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			WORD stat;
+			if (uInfo->attrs->armorFlags & ITEM_GROUP_ALLARMOR) { stat = STAT_ENHANCEDDEFENSE; }
+			else {
+				// Normal %ED will have the same value for STAT_ENHANCEDMAXIMUMDAMAGE and STAT_ENHANCEDMINIMUMDAMAGE
+				stat = STAT_ENHANCEDMAXIMUMDAMAGE;
+			}
+			DWORD     value = 0;
+			StatList* pStatList = D2COMMON_GetStatList(uInfo->item, NULL, 0x40);
+			if (pStatList) {
+				value += D2COMMON_GetStatValueFromStatList(pStatList, stat, 0);
+			}
+			return value;
+		}
+	} },
+	{ L"edam", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_ENHANCEDMAXIMUMDAMAGE, 0);
+		}
+	} },
+	{ L"edef", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_ENHANCEDDEFENSE, 0);
+		}
+	} },
+	{ L"elt", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->baseFlags & ITEM_GROUP_ELITE) != 0;
+		}
+	} },
+	{ L"eq", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			const auto id = ids[0];
+			switch (id) {
+				case 1:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_HELM) != 0;
+				}
+				case 2:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_BODY_ARMOR) != 0;
+				}
+				case 3:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_SHIELD) != 0;
+				}
+				case 4:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_GLOVES) != 0;
+				}
+				case 5:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_BOOTS) != 0;
+				}
+				case 6:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_BELT) != 0;
+				}
+				case 7:
+				{
+					return (uInfo->attrs->armorFlags & ITEM_GROUP_CIRCLET) != 0;
+				}
+				default:
+				{
+					err = FormulaStatus::MATH_ERROR;
+					return 0;
+				}
+			}
+		}
+	} },
+	{ L"equipped", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_EQUIPPED);
+		}
+	} },
+	{ L"eth", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) != 0;
+		}
+	} },
+	{ L"exc", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->baseFlags & ITEM_GROUP_EXCEPTIONAL) != 0;
+		}
+	} },
+	{ L"false", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return 0;
+		}
+	} },
+	{ L"fbr", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_FASTERBLOCK, 0);
+		}
+	} },
+	{ L"fcr", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_FASTERCAST, 0);
+		}
+	} },
+	{ L"fhr", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_FASTERHITRECOVERY, 0);
+		}
+	} },
+	{ L"filtlvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return Item::GetFilterLevel();
+		}
+	} },
+	{ L"fools", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			unsigned int value = 0;
+			Stat         aStatList[256] = { NULL };
+			StatList* pStatList = D2COMMON_GetStatList(uInfo->item, NULL, 0x40);
+			if (pStatList) {
+				DWORD dwStats = D2COMMON_CopyStatList(pStatList, (Stat*)aStatList, 256);
+				for (UINT i = 0; i < dwStats; i++) {
+					if (aStatList[i].wStatIndex == STAT_MAXDAMAGEPERLEVEL && aStatList[i].wSubIndex == 0) { value += 1; }
+					if (aStatList[i].wStatIndex == STAT_ATTACKRATINGPERLEVEL && aStatList[i].wSubIndex == 0) { value += 2; }
+				}
+			}
+			return value == 3;
+		}
+	} },
+	{ L"fres", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_FIRERESIST, 0);
+		}
+	} },
+	{ L"frw", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_FASTERRUNWALK, 0);
+		}
+	} },
+	{ L"gem", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (IsGem(uInfo->attrs)) {
+				return GetGemLevel(uInfo->attrs);
+			}
+			return 0;
+		}
+	} },
+	{ L"gemlevel", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (IsGem(uInfo->attrs)) {
+				return GetGemLevel(uInfo->attrs);
+			}
+			return 0;
+		}
+	} },
+	{ L"gemmed", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (uInfo->item->pInventory) {
+				return uInfo->item->pInventory->dwItemCount > 0;
+			}
+			return 0;
+		}
+	} },
+	{ L"gemtype", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (IsGem(uInfo->attrs)) {
+				return GetGemType(uInfo->attrs);
+			}
+			return 0;
+		}
+	} },
+	{ L"gfind", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_GOLDFIND, 0);
+		}
+	} },
+	{ L"gloves", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_GLOVES) != 0;
+		}
+	} },
+	{ L"guildvault", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_GUILDVAULT);
+		}
+	} },
+	{ L"gold", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (uInfo->itemCode[0] == 'g' && uInfo->itemCode[1] == 'l' && uInfo->itemCode[2] == 'd') {
+				return D2COMMON_GetUnitStat(uInfo->item, STAT_GOLD, 0);
+			}
+			return 0;
+		}
+	} },
+	{ L"ground", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_GROUND);
+		}
+	} },
+	{ L"hammer", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_HAMMER) != 0;
+		}
+	} },
+	{ L"helm", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_HELM) != 0;
+		}
+	} },
+	{ L"ias", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_IAS, 0);
+		}
+	} },
+	{ L"id", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->item->pItemData->dwFlags & ITEM_IDENTIFIED) != 0;
+		}
+	} },
+	{ L"ilvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwItemLevel;
+		}
+	} },
+	{ L"inf", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_INFERIOR;
+		}
+	} },
+	{ L"inventory", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_INVENTORY);
+		}
+	} },
+	{ L"jav", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_JAVELIN) != 0;
+		}
+	} },
+	{ L"jewelry", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->miscFlags & ITEM_GROUP_JEWELRY) != 0;
+		}
+	} },
+	{ L"life", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_MAXHP, 0);
+		}
+	} },
+	{ L"lres", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_LIGHTNINGRESIST, 0);
+		}
+	} },
+	{ L"lvlreq", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetRequiredLevel(uInfo->item);
+		}
+	} },
+	{ L"mace", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_ALLMACE) != 0;
+		}
+	} },
+	{ L"maek", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_MANAAFTEREACHKILL, 0);
+		}
+	} },
+	{ L"mag", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_MAGIC;
+		}
+	} },
+	{ L"mana", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_MAXMANA, 0);
+		}
+	} },
+	{ L"mapid", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			UnitAny* player = D2CLIENT_GetPlayerUnit();
+			if (player) {
+				int map_id = D2COMMON_GetLevelIdFromRoom(D2COMMON_GetRoomFromUnit(player));
+				return map_id;
+			}
+			return 0;
+		}
+	} },
+	{ L"maptier", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (maptiers.find(uInfo->attrs->category) != maptiers.end()) {
+				return maptiers.at(uInfo->attrs->category);
+			}
+			return -1;
+		}
+	} },
+	{ L"maxdmg", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return MinMaxDamageCondition::GetValue(MinMaxDamageCondition::DamageType::MAX, uInfo);
+		}
+	} },
+	{ L"maxdur", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			DWORD     value = 0;
+			Stat      aStatList[256] = { NULL };
+			StatList* pStatList = D2COMMON_GetStatList(uInfo->item, NULL, 0x40);
+			if (pStatList) {
+				DWORD dwStats = D2COMMON_CopyStatList(pStatList, (Stat*)aStatList, 256);
+				for (UINT i = 0; i < dwStats; i++) { if (aStatList[i].wStatIndex == STAT_ENHANCEDMAXDURABILITY && aStatList[i].wSubIndex == 0) { value += aStatList[i].dwStatValue; } }
+			}
+			return value;
+		}
+	} },
+	{ L"merc", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_MERCEQUIPPED);
+		}
+	} },
+	{ L"mfind", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_MAGICFIND, 0);
+		}
+	} },
+	{ L"mindmg", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return MinMaxDamageCondition::GetValue(MinMaxDamageCondition::DamageType::MIN, uInfo);
+		}
+	} },
+	{ L"misc", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->miscFlags & ITEM_GROUP_ALLMISC) != 0;
+		}
+	} },
+	{ L"nec", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_NECROMANCER_SHIELD) != 0;
+		}
+	} },
+	{ L"necromancer", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 2;
+		}
+	} },
+	{ L"nmag", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_INFERIOR
+				|| uInfo->item->pItemData->dwQuality == ITEM_QUALITY_NORMAL
+				|| uInfo->item->pItemData->dwQuality == ITEM_QUALITY_SUPERIOR;
+		}
+	} },
+	{ L"norm", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->baseFlags & ITEM_GROUP_NORMAL) != 0;
+		}
+	} },
+	{ L"os", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto skill = ids[0];
+			if (skill < 0 || skill > SKILL_MAX) {
+				err = FormulaStatus::MATH_ERROR;
+				return 0;
+			}
+			return GetAdjustedUnitStat(uInfo, STAT_NONCLASSSKILL, skill);
+		}
+	} },
+	{ L"paladin", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 3;
+		}
+	} },
+	{ L"polearm", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_POLEARM) != 0;
+		}
+	} },
+	{ L"preview", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_PREVIEW);
+		}
+	} },
+	{ L"pres", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_POISONRESIST, 0);
+		}
+	} },
+	{ L"price", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetShopPrice(D2CLIENT_GetPlayerUnit(), uInfo->item, TRANSACTIONTYPE_SELL);
+		}
+	} },
+	{ L"qlvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->attrs->qualityLevel;
+		}
+	} },
+	{ L"qty", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_AMMOQUANTITY, 0);
+		}
+	} },
+	{ L"quiver", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->miscFlags & ITEM_GROUP_QUIVER) != 0;
+		}
+	} },
+	{ L"rare", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_RARE;
+		}
+	} },
+	{ L"repair", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_REPAIRSDURABILITY, 0);
+		}
+	} },
+	{ L"replife", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_REPLENISHLIFE, 0);
+		}
+	} },
+	{ L"repquant", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_REPLENISHESQUANTITY, 0);
+		}
+	} },
+	{ L"rerollalvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ComputeRerollAffixLevel(uInfo);
+		}
+	} },
+	{ L"res", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			int fRes = D2COMMON_GetUnitStat(uInfo->item, STAT_FIRERESIST, 0);
+			int lRes = D2COMMON_GetUnitStat(uInfo->item, STAT_LIGHTNINGRESIST, 0);
+			int cRes = D2COMMON_GetUnitStat(uInfo->item, STAT_COLDRESIST, 0);
+			int pRes = D2COMMON_GetUnitStat(uInfo->item, STAT_POISONRESIST, 0);
+			if (fRes && lRes && cRes && pRes) {
+				return min(min(fRes, lRes), min(cRes, pRes));
+			}
+			return 0;
+		}
+	} },
+	{ L"rune", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (IsRune(uInfo->attrs)) {
+				return RuneNumberFromItemCode(uInfo->itemCode);
+			}
+			return 0;
+		}
+	} },
+	{ L"rw", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->item->pItemData->dwFlags & ITEM_RUNEWORD) != 0;
+		}
+	} },
+	{ L"scepter", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_SCEPTER) != 0;
+		}
+	} },
+	{ L"sellprice", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetShopPrice(D2CLIENT_GetPlayerUnit(), uInfo->item, TRANSACTIONTYPE_SELL);
+		}
+	} },
+	{ L"set", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_SET;
+		}
+	} },
+	{ L"shield", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->armorFlags & ITEM_GROUP_SHIELD) != 0;
+		}
+	} },
+	{ L"shop", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			if (uInfo->item->pItemData &&
+				uInfo->item->pItemData->pOwnerInventory &&
+				uInfo->item->pItemData->pOwnerInventory->pOwner) {
+				auto wNpcId = uInfo->item->pItemData->pOwnerInventory->pOwner->dwTxtFileNo;
+				if (find(begin(ShopNPCs), end(ShopNPCs), wNpcId) != end(ShopNPCs)) {
+					return 1;
+				}
+			}
+			return 0;
+		}
+	} },
+	{ L"sin", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_ASSASSIN_KATAR) != 0;
+		}
+	} },
+	{ L"sk", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto skill = ids[0];
+			if (skill < 0 || skill > SKILL_MAX) {
+				err = FormulaStatus::MATH_ERROR;
+				return 0;
+			}
+			return GetAdjustedUnitStat(uInfo, STAT_SINGLESKILL, skill);
+		}
+	} },
+	{ L"sock", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_SOCKETS, 0);
+		}
+	} },
+	{ L"sockets", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_SOCKETS, 0);
+		}
+	} },
+	{ L"sor", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_SORCERESS_ORB) != 0;
+		}
+	} },
+	{ L"sorceress", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return D2CLIENT_GetPlayerUnit()->dwTxtFileNo == 1;
+		}
+	} },
+	{ L"spear", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_SPEAR) != 0;
+		}
+	} },
+	{ L"staff", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_STAFF) != 0;
+		}
+	} },
+	{ L"stash", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_STASH);
+		}
+	} },
+	{ L"str", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return GetAdjustedUnitStat(uInfo, STAT_STRENGTH, 0);
+		}
+	} },
+	{ L"sup", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_SUPERIOR;
+		}
+	} },
+	{ L"sword", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_SWORD) != 0;
+		}
+	} },
+	{ L"tabsk", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			auto skill = ids[0];
+			if (skill < 0 || skill > SKILL_MAX) {
+				err = FormulaStatus::MATH_ERROR;
+				return 0;
+			}
+			return GetAdjustedUnitStat(uInfo, STAT_SKILLTAB, skill);
+		}
+	} },
+	{ L"throwing", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_THROWING) != 0;
+		}
+	} },
+	{ L"tmace", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_TIPPED_MACE) != 0;
+		}
+	} },
+	{ L"trophycase", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ItemHasLocation(uInfo, LOCATIONFLAG_TROPHYCASE);
+		}
+	} },
+	{ L"true", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return 1;
+		}
+	} },
+	{ L"uni", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->item->pItemData->dwQuality == ITEM_QUALITY_UNIQUE;
+		}
+	} },
+	{ L"wand", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_WAND) != 0;
+		}
+	} },
+	{ L"weapon", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_ALLWEAPON) != 0;
+		}
+	} },
+	{ L"wp", { 1, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			const auto id = ids[0];
+			switch (id) {
+				case 1:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_AXE) != 0;
+				}
+				case 2:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_ALLMACE) != 0;
+				}
+				case 3:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_SWORD) != 0;
+				}
+				case 4:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_DAGGER) != 0;
+				}
+				case 5:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_THROWING) != 0;
+				}
+				case 6:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_JAVELIN) != 0;
+				}
+				case 7:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_SPEAR) != 0;
+				}
+				case 8:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_POLEARM) != 0;
+				}
+				case 9:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_BOW) != 0;
+				}
+				case 10:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_CROSSBOW) != 0;
+				}
+				case 11:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_STAFF) != 0;
+				}
+				case 12:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_WAND) != 0;
+				}
+				case 13:
+				{
+					return (uInfo->attrs->weaponFlags & ITEM_GROUP_SCEPTER) != 0;
+				}
+				default:
+				{
+					err = FormulaStatus::MATH_ERROR;
+					return 0;
+				}
+			}
+		}
+	} },
+	{ L"xbow", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_CROSSBOW) != 0;
+		}
+	} },
+	{ L"zon", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return (uInfo->attrs->weaponFlags & ITEM_GROUP_AMAZON_WEAPON) != 0;
+		}
+	} },
+	{ L"width", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->attrs->width;
+		}
+	} },
+	{ L"height", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->attrs->height;
+		}
+	} },
+	{ L"area", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return uInfo->attrs->width * uInfo->attrs->height;
+		}
+	} },
+	{ L"maxsockets", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return MaxSocketsCondition::GetValue(uInfo);
+		}
+	} },
+	{ L"uplvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return UpStatCondition::GetValue(UpStatCondition::UpStatType::LEVEL, uInfo);
+		}
+	} },
+	{ L"upstr", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return UpStatCondition::GetValue(UpStatCondition::UpStatType::STRENGTH, uInfo);
+		}
+	} },
+	{ L"updex", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return UpStatCondition::GetValue(UpStatCondition::UpStatType::DEXTERITY, uInfo);
+		}
+	} },
+	{ L"maxres", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return MaxResCondition::GetValue(uInfo);
+		}
+	} },
+	{ L"plusdef", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return PlusDefCondition::GetValue(uInfo);
+		}
+	} },
+	{ L"allattrib", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return AllAttributesCondition::GetValue(uInfo);
+		}
+	} },
+	{ L"baseblock", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseBlockCondition::GetValue(uInfo);
+		}
+	} },
+	{ L"baseminoneh", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MIN1H, uInfo);
+		}
+	} },
+	{ L"basemintwoh", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MIN2H, uInfo);
+		}
+	} },
+	{ L"baseminsmite", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINSMITE, uInfo);
+		}
+	} },
+	{ L"baseminkick", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINKICK, uInfo);
+		}
+	} },
+	{ L"baseminthrow", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MINTHROW, uInfo);
+		}
+	} },
+	{ L"basemaxoneh", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAX1H, uInfo);
+		}
+	} },
+	{ L"basemaxtwoh", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAX2H, uInfo);
+		}
+	} },
+	{ L"basemaxsmite", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXSMITE, uInfo);
+		}
+	} },
+	{ L"basemaxkick", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXKICK, uInfo);
+		}
+	} },
+	{ L"basemaxthrow", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return BaseWeaponDamageCondition::GetValue(BaseWeaponDamageCondition::DamageType::MAXTHROW, uInfo);
+		}
+	} },
+	{ L"reqlvl", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::LEVEL, uInfo);
+		}
+	} },
+	{ L"reqstr", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::STRENGTH, uInfo);
+		}
+	} },
+	{ L"reqdex", { 0, [](FormulaStatus& err, UnitItemInfo* uInfo, const std::vector<int>& ids) -> float {
+			return ReqStatCondition::GetValue(ReqStatCondition::ReqStatType::DEXTERITY, uInfo);
+		}
+	} },
+};
+
+// Find the item description. This code is called only when there's a cache miss
+wstring ItemDescLookupCache::make_cached_T(UnitItemInfo* uInfo)
+{
+	ReplaceContext ctx(uInfo, L"", FALSE);
 	for (vector<Rule*>::const_iterator it = RuleList.begin(); it != RuleList.end(); it++)
 	{
 		if ((*it)->Evaluate(uInfo))
@@ -1356,10 +2855,10 @@ string ItemDescLookupCache::make_cached_T(UnitItemInfo* uInfo)
 	return ctx.name;
 }
 
-string ItemDescLookupCache::to_str(const string& name)
+string ItemDescLookupCache::to_str(const wstring& name)
 {
+	std::string itemName = WideToAnsi(name);
 	size_t      start_pos = 0;
-	std::string itemName(name);
 	while ((start_pos = itemName.find('\n', start_pos)) != std::string::npos)
 	{
 		itemName.replace(start_pos, 1, " - ");
@@ -1369,12 +2868,12 @@ string ItemDescLookupCache::to_str(const string& name)
 }
 
 // Find the item name. This code is called only when there's a cache miss
-string ItemNameLookupCache::make_cached_T(UnitItemInfo* uInfo,
-	const string& name)
+wstring ItemNameLookupCache::make_cached_T(UnitItemInfo* uInfo,
+	const wstring& name)
 {
-	string new_name(name);
-	if (!new_name.empty() && new_name.front() == ' ') { new_name.erase(0, 1); }					// removes one leading space (happens on magic items without a prefix)
-	if (!new_name.empty() && new_name.back() == ' ') { new_name.erase(new_name.size() - 1, 1); }	// removes one trailing space (happens on magic items without a suffix)
+	wstring new_name(name);
+	if (!new_name.empty() && new_name.front() == L' ') { new_name.erase(0, 1); }					// removes one leading space (happens on magic items without a prefix)
+	if (!new_name.empty() && new_name.back() == L' ') { new_name.erase(new_name.size() - 1, 1); }	// removes one trailing space (happens on magic items without a suffix)
 	ReplaceContext ctx(uInfo, new_name.c_str(), TRUE);
 	for (vector<Rule*>::const_iterator it = RuleList.begin(); it != RuleList.end(); it++)
 	{
@@ -1389,10 +2888,10 @@ string ItemNameLookupCache::make_cached_T(UnitItemInfo* uInfo,
 	return ctx.name;
 }
 
-string ItemNameLookupCache::to_str(const string& name)
+string ItemNameLookupCache::to_str(const wstring& name)
 {
+	std::string itemName = WideToAnsi(name);
 	size_t      start_pos = 0;
-	std::string itemName(name);
 	while ((start_pos = itemName.find('\n', start_pos)) != std::string::npos)
 	{
 		itemName.replace(start_pos, 1, " - ");
@@ -1411,7 +2910,7 @@ vector<Action> MapActionLookupCache::make_cached_T(UnitItemInfo* uInfo)
 string MapActionLookupCache::to_str(const vector<Action>& actions)
 {
 	string name;
-	for (auto& action : actions) { name += action.name + " "; }
+	for (auto& action : actions) { name += WideToAnsi(action.name) + " "; }
 	return name;
 }
 
@@ -1421,80 +2920,80 @@ ItemNameLookupCache  item_name_cache(RuleList);
 MapActionLookupCache map_action_cache(MapRuleList);
 
 void GetItemName(UnitItemInfo* uInfo,
-	string& name)
+	wstring& name)
 {
-	string new_name = item_name_cache.Get(uInfo, name);
-	if (new_name == "" && Item::GetFilterLevel() == 0) {
+	wstring new_name = item_name_cache.Get(uInfo, name);
+	if (new_name == L"" && Item::GetFilterLevel() == 0) {
 		return;
 	}
 	name.assign(new_name);
 }
 
-string NameVarSockets(UnitItemInfo* uInfo)
+wstring NameVarSockets(UnitItemInfo* uInfo)
 {
-	char sockets[4] = "";
-	sprintf_s(sockets, "%d", D2COMMON_GetUnitStat(uInfo->item, STAT_SOCKETS, 0));
+	wchar_t sockets[4] = L"";
+	swprintf(sockets, 4, L"%d", D2COMMON_GetUnitStat(uInfo->item, STAT_SOCKETS, 0));
 	return 	sockets;
 }
 
-string NameVarRuneNum(UnitItemInfo* uInfo)
+wstring NameVarRuneNum(UnitItemInfo* uInfo)
 {
-	char runenum[4] = "0";
+	wchar_t runenum[4] = L"0";
 	if (IsRune(uInfo->attrs))
-		sprintf_s(runenum, "%d", RuneNumberFromItemCode(uInfo->itemCode));
+		swprintf(runenum, 4, L"%d", RuneNumberFromItemCode(uInfo->itemCode));
 	return runenum;
 }
 
-string NameVarRuneName(UnitItemInfo* uInfo)
+wstring NameVarRuneName(UnitItemInfo* uInfo)
 {
 	// TODO: removes " Rune" from the rune name. Pretty likely to break on non-english strings
 	// Utilize D2LANG_GetLocaleText(20473) area?
-	char runename[16] = "";
+	wstring runename;
 	if (IsRune(uInfo->attrs))
 	{
-		sprintf_s(runename, uInfo->attrs->name.substr(0, uInfo->attrs->name.find(' ')).c_str());
+		runename = uInfo->attrs->name.substr(0, uInfo->attrs->name.find(L' '));
 	}
 	return runename;
 }
 
-string NameVarGemLevel(UnitItemInfo* uInfo)
+wstring NameVarGemLevel(UnitItemInfo* uInfo)
 {
-	char gemlevel[16] = "";
+	wchar_t gemlevel[16] = L"";
 	if (IsGem(uInfo->attrs))
-		sprintf_s(gemlevel, "%s", GetGemLevelString(GetGemLevel(uInfo->attrs)));
+		swprintf(gemlevel, 16, L"%ls", GetGemLevelString(GetGemLevel(uInfo->attrs)));
 	return gemlevel;
 }
 
-string NameVarGemType(UnitItemInfo* uInfo)
+wstring NameVarGemType(UnitItemInfo* uInfo)
 {
-	char gemtype[16] = "";
+	wchar_t gemtype[16] = L"";
 	if (IsGem(uInfo->attrs))
-		sprintf_s(gemtype, "%s", GetGemTypeString(GetGemType(uInfo->attrs)));
+		swprintf(gemtype, 16, L"%ls", GetGemTypeString(GetGemType(uInfo->attrs)));
 	return gemtype;
 }
 
-string NameVarIlvl(UnitItemInfo* uInfo)
+wstring NameVarIlvl(UnitItemInfo* uInfo)
 {
-	char ilvl[4] = "0";
-	sprintf_s(ilvl, "%d", uInfo->item->pItemData->dwItemLevel);
+	wchar_t ilvl[4] = L"0";
+	swprintf(ilvl, 4, L"%d", uInfo->item->pItemData->dwItemLevel);
 	return ilvl;
 }
 
-string NameVarAlvl(UnitItemInfo* uInfo)
+wstring NameVarAlvl(UnitItemInfo* uInfo)
 {
-	char alvl[4] = "0";
+	wchar_t alvl[4] = L"0";
 	int alvl_int = GetAffixLevel(
 		uInfo->item->pItemData->dwItemLevel,
 		uInfo->attrs->qualityLevel,
 		uInfo->attrs->magicLevel
 	);
-	sprintf_s(alvl, "%d", alvl_int);
+	swprintf(alvl, 4, L"%d", alvl_int);
 	return alvl;
 }
 
-string NameVarCraftAlvl(UnitItemInfo* uInfo)
+wstring NameVarCraftAlvl(UnitItemInfo* uInfo)
 {
-	char craftalvl[4] = "0";
+	wchar_t craftalvl[4] = L"0";
 	int clvl = D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), STAT_LEVEL, 0);
 
 	int craft_alvl = GetAffixLevel(
@@ -1502,51 +3001,73 @@ string NameVarCraftAlvl(UnitItemInfo* uInfo)
 		uInfo->attrs->qualityLevel,
 		uInfo->attrs->magicLevel
 	);
-	sprintf_s(craftalvl, "%d", craft_alvl);
+	swprintf(craftalvl, 4, L"%d", craft_alvl);
 	return craftalvl;
 }
 
-string NameVarLevelReq(UnitItemInfo* uInfo)
+wstring NameVarRerollAlvl(UnitItemInfo* uInfo)
 {
-	char lvlreq[4] = "0";
-	sprintf_s(lvlreq, "%d", GetRequiredLevel(uInfo->item));
+	wchar_t alvl[4] = L"0";
+	int reroll_alvl = ComputeRerollAffixLevel(uInfo);
+	swprintf(alvl, 4, L"%d", reroll_alvl);
+	return alvl;
+}
+
+wstring NameVarLevelReq(UnitItemInfo* uInfo)
+{
+	wchar_t lvlreq[4] = L"0";
+	swprintf(lvlreq, 4, L"%d", GetRequiredLevel(uInfo->item));
 	return lvlreq;
 }
 
-string NameVarWeaponSpeed(ItemsTxt* itemTxt)
+wstring NameVarWeaponSpeed(ItemsTxt* itemTxt)
 {
-	char wpnspd[4] = "0";
-	sprintf_s(wpnspd, "%d", itemTxt->dwspeed);
+	wchar_t wpnspd[4] = L"0";
+	swprintf(wpnspd, 4, L"%d", itemTxt->dwspeed);
 	return wpnspd;
 }
 
-string NameVarRangeAdder(ItemsTxt* itemTxt)
+wstring NameVarRangeAdder(ItemsTxt* itemTxt)
 {
-	char rangeadder[4] = "0";
-	sprintf_s(rangeadder, "%d", itemTxt->brangeadder);
+	wchar_t rangeadder[4] = L"0";
+	swprintf(rangeadder, 4, L"%d", itemTxt->brangeadder);
 	return rangeadder;
 }
 
-string NameVarSellValue(UnitItemInfo* uInfo,
+wstring NameVarBuyValue(UnitItemInfo* uInfo,
 	ItemsTxt* itemTxt)
 {
-	char sellvalue[16] = "";
+	wchar_t sellvalue[16] = L"";
 	UnitAny* pUnit = D2CLIENT_GetPlayerUnit();
 	if (pUnit && itemTxt->bquest == 0)
-		sprintf_s(sellvalue, "%d", D2COMMON_GetItemPrice(pUnit, uInfo->item, D2CLIENT_GetDifficulty(), (DWORD)D2CLIENT_GetQuestInfo(), 0x201, 1));
+	{
+		swprintf(sellvalue, 16, L"%d", GetShopPrice(pUnit, uInfo->item, TRANSACTIONTYPE_BUY));
+	}
 	return sellvalue;
 }
 
-string NameVarQty(UnitItemInfo* uInfo)
+wstring NameVarSellValue(UnitItemInfo* uInfo,
+	ItemsTxt* itemTxt)
 {
-	char qty[10] = "0";
-	sprintf_s(qty, "%d", D2COMMON_GetUnitStat(uInfo->item, STAT_AMMOQUANTITY, 0));
+	wchar_t sellvalue[16] = L"";
+	UnitAny* pUnit = D2CLIENT_GetPlayerUnit();
+	if (pUnit && itemTxt->bquest == 0)
+	{
+		swprintf(sellvalue, 16, L"%d", GetShopPrice(pUnit, uInfo->item, TRANSACTIONTYPE_SELL));
+	}
+	return sellvalue;
+}
+
+wstring NameVarQty(UnitItemInfo* uInfo)
+{
+	wchar_t qty[10] = L"0";
+	swprintf(qty, 10, L"%d", D2COMMON_GetUnitStat(uInfo->item, STAT_AMMOQUANTITY, 0));
 	return qty;
 }
 
-string NameVarAllRes(UnitItemInfo* uInfo)
+wstring NameVarAllRes(UnitItemInfo* uInfo)
 {
-	char allres[4] = "0";
+	wchar_t allres[4] = L"0";
 	int fRes = D2COMMON_GetUnitStat(uInfo->item, STAT_FIRERESIST, 0);
 	int lRes = D2COMMON_GetUnitStat(uInfo->item, STAT_LIGHTNINGRESIST, 0);
 	int cRes = D2COMMON_GetUnitStat(uInfo->item, STAT_COLDRESIST, 0);
@@ -1556,13 +3077,13 @@ string NameVarAllRes(UnitItemInfo* uInfo)
 	{
 		minres = min(min(fRes, lRes), min(cRes, pRes));
 	}
-	sprintf_s(allres, "%d", minres);
+	swprintf(allres, 4, L"%d", minres);
 	return allres;
 }
 
-string NameVarEd(UnitItemInfo* uInfo)
+wstring NameVarEd(UnitItemInfo* uInfo)
 {
-	char ed[4] = "0";
+	wchar_t ed[4] = L"0";
 
 	// Either enhanced defense or enhanced damage depending on item type
 	WORD stat;
@@ -1578,47 +3099,80 @@ string NameVarEd(UnitItemInfo* uInfo)
 	{
 		value += D2COMMON_GetStatValueFromStatList(pStatList, stat, 0);
 	}
-	sprintf_s(ed, "%d", value);
+	swprintf(ed, 4, L"%d", value);
 	return ed;
 }
 
+bool IsWhitespaceEquivalent(wchar_t ch)
+{
+	return iswspace(ch) || ch == L'\b';
+}
+
 void TrimItemText(UnitItemInfo* uInfo,
-	string& name,
+	wstring& name,
 	BOOL bLimit)
 {
-	// Collapse paired CLs
-	while (name.find("\r\r") != string::npos)
-		name.replace(name.find("\r\r"), 2, "\r");
-	// Delete leading/trailing CLs
-	if (name.find("\r") == 0)
-		name.erase(0, 1);
-	if (!name.empty() && name.rfind("\r") == name.size() - 1)
-		name.resize(name.size() - 1);
-	// Convert to new line
-	while (name.find("\r") != string::npos)
-		name.replace(name.find("\r"), 1, "\n");
+	int offset = 0;
+	for (int i = 0; i < name.length(); ++i) {
+		const wchar_t ch = name[i];
+		switch (ch) {
+			case L'\r':
+			{
+				// only need a newline if
+				// 1) the previous character isn't a newline
+				// 2) there is non-newline next
+				if (offset == 0 || name[offset - 1] == L'\n') {
+					break;
+				}
+				if (i + 1 < name.length() && name[i + 1] != L'\n' && name[i + 1] != L'\r') {
+					name[offset++] = L'\n';
+				}
+				break;
+			}
+			case L'\b':
+			{
+				// only need a space if
+				// 1) the previous character isn't whitespace
+				// 2) there is non-whitespace next
+				if (offset == 0 || IsWhitespaceEquivalent(name[offset - 1])) {
+					break;
+				}
+				if (i + 1 < name.length() && !IsWhitespaceEquivalent(name[i + 1])) {
+					name[offset++] = L' ';
+				}
+				break;
+			}
+			default:
+			{
+				name[offset++] = ch;
+			}
+		}
+	}
+	name.resize(offset);
 
 	int nColorCodesSize = 0;
 	int lengthLimit = 0;
 	if (bLimit)
 	{
 		// Calc the extra size from colors
-		std::regex color_reg("ÿc[0-9;:\\x01-\\x1F]", std::regex_constants::ECMAScript);
-		auto       color_matches = std::sregex_iterator(name.begin(), name.end(), color_reg);
-		auto       color_end = std::sregex_iterator();
+		// In wide strings: color code is \xFF followed by 'c' followed by digit = 3 wchar_t
+		std::wregex color_reg(L"\\xFFc[0-9;:\\x01-\\x1F]", std::regex_constants::ECMAScript);
+		auto       color_matches = std::wsregex_iterator(name.begin(), name.end(), color_reg);
+		auto       color_end = std::wsregex_iterator();
 		auto       match_count = std::distance(color_matches, color_end);
 		nColorCodesSize += 3 * match_count;
 
 		bool inShop = (uInfo->item->pItemData->pOwnerInventory != 0 && // Skip on ground items
+			uInfo->item->pItemData->pOwnerInventory->pOwner != 0 &&
 			find(begin(ShopNPCs), end(ShopNPCs), uInfo->item->pItemData->pOwnerInventory->pOwner->dwTxtFileNo) != end(ShopNPCs));
 
 		// Increase limit for shop items
 		lengthLimit = inShop ? MAX_ITEM_TEXT_SIZE : MAX_ITEM_NAME_SIZE;
 
 		int nColorsToKeep = 0;
-		for (std::sregex_iterator k = color_matches; k != color_end; ++k)
+		for (std::wsregex_iterator k = color_matches; k != color_end; ++k)
 		{
-			std::smatch match = *k;
+			std::wsmatch match = *k;
 			auto        pos = match.position();
 			if (pos - (nColorsToKeep) > lengthLimit) { break; }
 			nColorsToKeep += 3;
@@ -1685,13 +3239,13 @@ BYTE GetRequiredLevel(UnitAny* item)
 	return rlvl;
 }
 
-BYTE GetOperation(string* op)
+BYTE GetOperation(wstring* op)
 {
 	if (op->length() < 1) { return NONE; }
-	else if ((*op)[0] == '=') { return EQUAL; }
-	else if ((*op)[0] == '<') { return LESS_THAN; }
-	else if ((*op)[0] == '>') { return GREATER_THAN; }
-	else if ((*op)[0] == '~') { return BETWEEN; }
+	else if ((*op)[0] == L'=') { return EQUAL; }
+	else if ((*op)[0] == L'<') { return LESS_THAN; }
+	else if ((*op)[0] == L'>') { return GREATER_THAN; }
+	else if ((*op)[0] == L'~') { return BETWEEN; }
 	return NONE;
 }
 
@@ -1699,6 +3253,25 @@ unsigned int GetItemCodeIndex(char codeChar)
 {
 	// Characters '0'-'9' map to 0-9, and a-z map to 10-35
 	return codeChar - (codeChar < 90 ? 48 : 87);
+}
+
+bool FloatCompare(float Lvalue,
+	BYTE         operation,
+	int Rvalue,
+	int Bvalue = 0)
+{
+	switch (operation) {
+		case EQUAL:
+			return Lvalue == Rvalue;
+		case GREATER_THAN:
+			return Lvalue > Rvalue;
+		case LESS_THAN:
+			return Lvalue < Rvalue;
+		case BETWEEN:
+			return (Rvalue <= Lvalue && Lvalue <= Bvalue);
+		default:
+			return false;
+	}
 }
 
 bool IntegerCompare(int Lvalue,
@@ -1721,6 +3294,95 @@ bool IntegerCompare(int Lvalue,
 	}
 }
 
+void RegisterFormula(const std::wstring& ref, std::unique_ptr<Formula<FormulaContext>>& ptr)
+{
+	formulaMap.insert_or_assign(ref, std::move(ptr));
+	FormulaReplacementMap.insert_or_assign(ref, ReplacementSpec{ 0, ReplacementSpec::ReplaceBindFormula(formulaMap.find(ref)->second) });
+}
+
+struct IslandReplacementHelper
+{
+	const wstring IslandIdentifier = L"$f(";
+	const wstring IslandPrefix = L"ISLAND_";
+	wstring IslandSuffix;
+
+	IslandReplacementHelper()
+	{
+		reset();
+	}
+
+	void reset()
+	{
+		IslandSuffix.clear();
+	}
+
+	wstring GetNextFormulaIslandRef()
+	{
+		for (wchar_t& c : IslandSuffix) {
+			if (c == L'Z') {
+				c = L'A';
+				continue;
+			}
+			++c;
+			return IslandPrefix + IslandSuffix;
+		}
+
+		IslandSuffix.push_back(L'A');
+		return IslandPrefix + IslandSuffix;
+	}
+
+	size_t MatchParentheses(wstring& text, size_t begin)
+	{
+		for (int i = begin, count = 0; i < text.length(); ++i) {
+			if (text[i] == L'(') {
+				count += 1;
+			}
+			else if (text[i] == L')') {
+				count -= 1;
+				if (count == 0) {
+					return i;
+				}
+			}
+		}
+		return text.length();
+	}
+
+	void ReplaceFormulaIslands(wstring& text, wstring& pre, wstring& suf)
+	{
+		wstring result;
+		size_t offset = 0;
+		while (offset < text.length()) {
+			const auto start = text.find(IslandIdentifier, offset);
+			if (start == wstring::npos) {
+				if (offset == 0) {
+					return;
+				}
+				result.append(text, offset, wstring::npos);
+				break;
+			}
+			result.append(text, offset, start - offset);
+			size_t endOfIsland = MatchParentheses(text, start + IslandIdentifier.length() - 1);
+			if (endOfIsland < text.length()) {
+				std::unique_ptr<Formula<FormulaContext>> out;
+				size_t length = endOfIsland - start - IslandIdentifier.length();
+				if (Formula<FormulaContext>::Compile(text.substr(start + IslandIdentifier.length(), length), out, formulaVarDefs) == FormulaStatus::OK) {
+					const auto ref = GetNextFormulaIslandRef();
+					RegisterFormula(ref, out);
+					result.append(pre + ref + suf);
+				}
+				else {
+					result.append(text, start, endOfIsland - start + 1);
+				}
+				offset = endOfIsland + 1;
+				continue;
+			}
+			result.append(text, start, IslandIdentifier.length());
+			offset = start + IslandIdentifier.length();
+		}
+		text = move(result);
+	}
+} islandReplacementHelper;
+
 namespace ItemDisplay
 {
 	bool item_display_initialized = false;
@@ -1734,19 +3396,56 @@ namespace ItemDisplay
 		item_display_initialized = true;
 		rules.clear();
 		aliases.clear();
+		formulas.clear();
+		formulaMap.clear();
+		FormulaReplacementMap.clear();
+		islandReplacementHelper.reset();
 		ResetCaches();
-		BH::lootFilter->ReadMapList("Alias", aliases);
-		BH::lootFilter->ReadMapList("ItemDisplay", rules);
+
+		{
+			vector<pair<string, string>> rawAliases;
+			BH::lootFilter->ReadMapList("Alias", rawAliases);
+			for (auto& p : rawAliases) {
+				aliases.push_back({AnsiToWide(p.first), AnsiToWide(p.second)});
+			}
+		}
+		BH::lootFilter->ReadMapList("Formula", formulas);
+		{
+			vector<pair<string, string>> rawRules;
+			BH::lootFilter->ReadMapList("ItemDisplay", rawRules);
+			for (auto& p : rawRules) {
+				rules.push_back({AnsiToWide(p.first), AnsiToWide(p.second)});
+			}
+		}
 
 		// Limit aliases to single keywords
 		for (unsigned int i = 0; i < aliases.size(); i++)
 		{
-			aliases[i].first = Trim(aliases[i].first);
+			aliases[i].first = TrimW(aliases[i].first);
 
-			if (aliases[i].first.find(" ") != string::npos)
-				aliases[i].first.erase(aliases[i].first.find(" "));
+			if (aliases[i].first.find(L" ") != wstring::npos)
+				aliases[i].first.erase(aliases[i].first.find(L" "));
 		}
 
+		for (const auto& f : formulas)
+		{
+			const auto& key = f.first;
+			const auto& text = f.second;
+
+			auto formulaRef = L"FORMULA" + AnsiToWide(key);
+			transform(formulaRef.begin(), formulaRef.end(), formulaRef.begin(), [](wchar_t c) { return (c >= L'a' && c <= L'z') ? (c - 32) : c; });
+
+			std::unique_ptr<Formula<FormulaContext>> out;
+			if (Formula<FormulaContext>::Compile(AnsiToWide(text), out, formulaVarDefs) != FormulaStatus::OK)
+			{
+				continue;
+			}
+
+			RegisterFormula(formulaRef, out);
+		}
+
+		std::wstring percent = L"%";
+		std::wstring empty = L"";
 		for (unsigned int i = 0; i < rules.size(); i++)
 		{
 			for (auto alias : aliases)
@@ -1754,22 +3453,26 @@ namespace ItemDisplay
 				if (alias.first.empty())
 					continue;
 
-				while (rules[i].first.find(alias.first) != string::npos)
+				while (rules[i].first.find(alias.first) != wstring::npos)
 					rules[i].first.replace(rules[i].first.find(alias.first), alias.first.length(), alias.second);
 
-				transform(alias.first.begin(), alias.first.end(), alias.first.begin(), toupper);
-				while (rules[i].second.find("%" + alias.first + "%") != string::npos)
-					rules[i].second.replace(rules[i].second.find("%" + alias.first + "%"), alias.first.length() + 2, alias.second);
+				transform(alias.first.begin(), alias.first.end(), alias.first.begin(), [](wchar_t c) { return (c >= L'a' && c <= L'z') ? (c - 32) : c; });
+				while (rules[i].second.find(L"%" + alias.first + L"%") != wstring::npos)
+					rules[i].second.replace(rules[i].second.find(L"%" + alias.first + L"%"), alias.first.length() + 2, alias.second);
 			}
 
-			string         buf;
-			stringstream   ss(rules[i].first);
-			vector<string> tokens;
+			// find inline formula islands
+			islandReplacementHelper.ReplaceFormulaIslands(rules[i].first, empty, empty);
+			islandReplacementHelper.ReplaceFormulaIslands(rules[i].second, percent, percent);
+
+			wstring         buf;
+			wstringstream   ss(rules[i].first);
+			vector<wstring> tokens;
 			while (ss >> buf) { tokens.push_back(buf); }
 
 			LastConditionType = CT_None;
 			vector<Condition*> RawConditions;
-			for (vector<string>::iterator tok = tokens.begin(); tok < tokens.end(); tok++) { Condition::BuildConditions(RawConditions, (*tok)); }
+			for (vector<wstring>::iterator tok = tokens.begin(); tok < tokens.end(); tok++) { Condition::BuildConditions(RawConditions, (*tok)); }
 			Rule* r = new Rule(RawConditions, &(rules[i].second));
 
 			RuleList.push_back(r);
@@ -1834,7 +3537,7 @@ namespace ItemDisplay
 }
 
 Rule::Rule(vector<Condition*>& inputConditions,
-	string* str)
+	wstring* str)
 {
 	Condition::ProcessConditions(inputConditions, conditions);
 	BuildAction(str, &action);
@@ -1845,16 +3548,16 @@ Rule::Rule(vector<Condition*>& inputConditions,
 	description = BuildReplacementActions(action.description);
 }
 
-string Rule::ApplyName(ReplaceContext& ctx) {
-	string res;
+wstring Rule::ApplyName(ReplaceContext& ctx) {
+	wstring res;
 	for (const auto& fn : name) {
 		res += fn.Replace(ctx);
 	}
 	return res;
 }
 
-string Rule::ApplyDescription(ReplaceContext& ctx) {
-	string res;
+wstring Rule::ApplyDescription(ReplaceContext& ctx) {
+	wstring res;
 	for (const auto& fn : description) {
 		res += fn.Replace(ctx);
 	}
@@ -1941,19 +3644,19 @@ bool Rule::EvaluateTreeInternal(UnitItemInfo* uInfo, size_t id) {
 	}
 }
 
-void BuildAction(string* str,
+void BuildAction(wstring* str,
 	Action* act)
 {
-	act->name = string(str->c_str());
+	act->name = wstring(str->c_str());
 
 	//// upcase all text in a %replacement_string%
 	//// for some reason \w wasn't catching _, so I added it to the groups
 	try
 	{
-		std::regex replace_reg(
-			R"(^(?:(?:%[^%]*%)|[^%])*%((?:\w|_|-)*?[a-z]+?(?:\w|_|-)*?)%)",
+		std::wregex replace_reg(
+			LR"(^(?:(?:%[^%]*%)|[^%])*%((?:\w|_|-)*?[a-z]+?(?:\w|_|-)*?)%)",
 			std::regex_constants::ECMAScript);
-		std::smatch replace_match;
+		std::wsmatch replace_match;
 		while (std::regex_search(act->name, replace_match, replace_reg))
 		{
 			auto offset = replace_match[1].first - act->name.begin();
@@ -1961,29 +3664,29 @@ void BuildAction(string* str,
 				replace_match[1].first,
 				replace_match[1].second,
 				act->name.begin() + offset,
-				toupper
+				[](wchar_t c) { return (c >= L'a' && c <= L'z') ? (c - 32) : c; }
 			);
 		}
 	}
 	catch (std::exception e)
 	{
-		act->name = "\377c1FILTER REGEX ERROR";
+		act->name = L"\xFF" L"c1FILTER REGEX ERROR";
 	}
 
 	// new stuff:
-	act->borderColor = ParseMapColor(act, "BORDER");
-	act->colorOnMap = ParseMapColor(act, "MAP");
-	act->dotColor = ParseMapColor(act, "DOT");
-	act->pxColor = ParseMapColor(act, "PX");
-	act->lineColor = ParseMapColor(act, "LINE");
-	act->notifyColor = ParseMapColor(act, "NOTIFY");
-	act->pingLevel = ParsePingLevel(act, "TIER");
+	act->borderColor = ParseMapColor(act, L"BORDER");
+	act->colorOnMap = ParseMapColor(act, L"MAP");
+	act->dotColor = ParseMapColor(act, L"DOT");
+	act->pxColor = ParseMapColor(act, L"PX");
+	act->lineColor = ParseMapColor(act, L"LINE");
+	act->notifyColor = ParseMapColor(act, L"NOTIFY");
+	act->pingLevel = ParsePingLevel(act, L"TIER");
 	act->description = ParseDescription(act);
-	act->soundID = ParseSoundID(act, "SOUNDID");
+	act->soundID = ParseSoundID(act, L"SOUNDID");
 
 	// legacy support:
-	size_t map = act->name.find("%MAP%");
-	if (map != string::npos)
+	size_t map = act->name.find(L"%MAP%");
+	if (map != wstring::npos)
 	{
 		int          mapColor = MAP_COLOR_WHITE;
 		size_t       lastColorPos = 0;
@@ -1992,39 +3695,39 @@ void BuildAction(string* str,
 		};
 		for (int n = 0; n < sizeof(colors) / sizeof(colors[0]); n++)
 		{
-			size_t pos = act->name.find("%" + colors[n].key + "%");
-			if (pos != string::npos && pos < map && pos >= lastColorPos)
+			size_t pos = act->name.find(L"%" + colors[n].key + L"%");
+			if (pos != wstring::npos && pos < map && pos >= lastColorPos)
 			{
 				mapColor = colors[n].value;
 				lastColorPos = pos;
 			}
 		}
 
-		act->name.replace(map, 5, "");
+		act->name.replace(map, 5, L"");
 		act->colorOnMap = mapColor;
 		if (act->borderColor == UNDEFINED_COLOR)
 			act->borderColor = act->colorOnMap;
 	}
 
-	size_t done = act->name.find("%CONTINUE%");
-	if (done != string::npos)
+	size_t done = act->name.find(L"%CONTINUE%");
+	if (done != wstring::npos)
 	{
-		act->name.replace(done, 10, "");
+		act->name.replace(done, 10, L"");
 		act->stopProcessing = false;
 	}
 }
 
-int ParsePingLevel(Action* act, const string& key_string) {
-	std::regex pattern("%" + key_string + "-([0-9])%",
+int ParsePingLevel(Action* act, const wstring& key_string) {
+	std::wregex pattern(L"%" + key_string + L"-([0-9])%",
 		std::regex_constants::ECMAScript | std::regex_constants::icase);
 	int ping_level = -1;
-	std::smatch the_match;
+	std::wsmatch the_match;
 
 	if (std::regex_search(act->name, the_match, pattern)) {
 		ping_level = stoi(the_match[1].str());
 		act->name.replace(
 			the_match.prefix().length(),
-			the_match[0].length(), "");
+			the_match[0].length(), L"");
 	}
 	return ping_level;
 }
@@ -2032,19 +3735,19 @@ int ParsePingLevel(Action* act, const string& key_string) {
 // ParseSoundID
 // Returns an int ranging from 0 to the MAX_SOUND_ID.
 // If the parsed soundID is not found in that range, this will return a 0.
-int ParseSoundID(Action* act, const string& key_string) {
-	std::regex pattern("%" + key_string + "-([0-9]{1,4})%",
+int ParseSoundID(Action* act, const wstring& key_string) {
+	std::wregex pattern(L"%" + key_string + L"-([0-9]{1,4})%",
 		std::regex_constants::ECMAScript | std::regex_constants::icase);
 	// Default soundID should be 0 incase this is played.
 	// 0 is none.wav
 	int soundID = 0;
-	std::smatch the_match;
+	std::wsmatch the_match;
 
 	if (std::regex_search(act->name, the_match, pattern)) {
 		int matchedSoundID = stoi(the_match[1].str());
 		act->name.replace(
 			the_match.prefix().length(),
-			the_match[0].length(), "");
+			the_match[0].length(), L"");
 
 		// Do our best to ensure the soundID is valid.
 		// Ensure soundID is in the range of 0 and MAX_SOUND_ID.
@@ -2056,25 +3759,25 @@ int ParseSoundID(Action* act, const string& key_string) {
 	return soundID;
 }
 
-string ParseDescription(Action* act)
+wstring ParseDescription(Action* act)
 {
-	size_t l_idx = act->name.find("{");
-	size_t r_idx = act->name.find("}");
-	if (l_idx == string::npos || r_idx == string::npos || l_idx > r_idx) return "";
+	size_t l_idx = act->name.find(L"{");
+	size_t r_idx = act->name.find(L"}");
+	if (l_idx == wstring::npos || r_idx == wstring::npos || l_idx > r_idx) return L"";
 	size_t start_idx = l_idx + 1;
 	size_t len = r_idx - start_idx;
-	string desc_string = act->name.substr(start_idx, len);
-	act->name.replace(l_idx, len + 2, "");
+	wstring desc_string = act->name.substr(start_idx, len);
+	act->name.replace(l_idx, len + 2, L"");
 	return desc_string;
 }
 
 int ParseMapColor(Action* act,
-	const string& key_string)
+	const wstring& key_string)
 {
-	std::regex pattern("%" + key_string + "-([a-f0-9]{1,4})%",
+	std::wregex pattern(L"%" + key_string + L"-([a-f0-9]{1,4})%",
 		std::regex_constants::ECMAScript | std::regex_constants::icase);
 	int         color = UNDEFINED_COLOR;
-	std::smatch the_match;
+	std::wsmatch the_match;
 
 	if (std::regex_search(act->name, the_match, pattern))
 	{
@@ -2082,12 +3785,12 @@ int ParseMapColor(Action* act,
 		act->name.replace(
 			the_match.prefix().length(),
 			the_match[0].length(),
-			"");
+			L"");
 	}
 	return color;
 }
 
-const string Condition::tokenDelims = "<=>~";
+const wstring Condition::tokenDelims = L"<=>~";
 
 // Implements the shunting-yard algorithm to evaluate condition expressions
 // Returns a vector of conditions in Reverse Polish Notation
@@ -2156,7 +3859,7 @@ void Condition::ProcessConditions(vector<Condition*>& inputConditions,
 }
 
 void Condition::BuildConditions(vector<Condition*>& conditions,
-	string              token)
+	wstring              token)
 {
 	vector<Condition*> endConditions;
 	int                i;
@@ -2167,9 +3870,9 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 	// Look for syntax characters at the beginning of the token
 	for (i = 0; i < (int)token.length(); i++)
 	{
-		if (token[i] == '!') { Condition::AddNonOperand(conditions, new NegationOperator()); }
-		else if (token[i] == '(') { Condition::AddNonOperand(conditions, new LeftParen()); }
-		else if (token[i] == ')') { Condition::AddNonOperand(conditions, new RightParen()); }
+		if (token[i] == L'!') { Condition::AddNonOperand(conditions, new NegationOperator()); }
+		else if (token[i] == L'(') { Condition::AddNonOperand(conditions, new LeftParen()); }
+		else if (token[i] == L')') { Condition::AddNonOperand(conditions, new RightParen()); }
 		else { break; }
 	}
 	token.erase(0, i);
@@ -2177,39 +3880,39 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 	// Look for syntax characters at the end of the token
 	for (i = token.length() - 1; i >= 0; i--)
 	{
-		if (token[i] == '!') { endConditions.insert(endConditions.begin(), new NegationOperator()); }
-		else if (token[i] == '(') { endConditions.insert(endConditions.begin(), new LeftParen()); }
-		else if (token[i] == ')') { endConditions.insert(endConditions.begin(), new RightParen()); }
+		if (token[i] == L'!') { endConditions.insert(endConditions.begin(), new NegationOperator()); }
+		else if (token[i] == L'(') { endConditions.insert(endConditions.begin(), new LeftParen()); }
+		else if (token[i] == L')') { endConditions.insert(endConditions.begin(), new RightParen()); }
 		else { break; }
 	}
-	if (i < (int)(token.length() - 1)) { token.erase(i + 1, string::npos); }
+	if (i < (int)(token.length() - 1)) { token.erase(i + 1, wstring::npos); }
 
 	size_t delPos = token.find_first_of(tokenDelims);
-	string key;
-	string delim = "";
+	wstring key;
+	wstring delim = L"";
 	int    value = 0;
 	int    value2 = 0;
-	if (delPos != string::npos)
+	if (delPos != wstring::npos)
 	{
-		key = Trim(token.substr(0, delPos));
+		key = TrimW(token.substr(0, delPos));
 		delim = token.substr(delPos, 1);
-		string valueStr = Trim(token.substr(delPos + 1));
+		wstring valueStr = TrimW(token.substr(delPos + 1));
 		if (valueStr.length() > 0)
 		{
 			// Get min/max values if a range is given
-			if (delim == "~" && valueStr.find("-") != string::npos)
+			if (delim == L"~" && valueStr.find(L"-") != wstring::npos)
 			{
-				auto rangeDelim = valueStr.find("-");
-				stringstream ss1(valueStr.substr(0, rangeDelim));
+				auto rangeDelim = valueStr.find(L"-");
+				wstringstream ss1(valueStr.substr(0, rangeDelim));
 				valueStr.erase(0, rangeDelim + 1);
-				stringstream ss2(valueStr);
+				wstringstream ss2(valueStr);
 				if ((ss1 >> value).fail() || (ss2 >> value2).fail())
 				{
 					return; // TODO: returning errors
 				}
 			}
 			else {
-				stringstream ss(valueStr);
+				wstringstream ss(valueStr);
 				if ((ss >> value).fail())
 				{
 					return; // TODO: returning errors
@@ -2221,62 +3924,66 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 
 	BYTE operation = GetOperation(&delim);
 	unsigned int keylen = key.length();
-	stringstream number_ss("");
+	wstringstream number_ss(L"");
 	int cond_num = -1;
-	std::regex multi_reg("([0-9]{1,10}),([0-9]{1,10})", std::regex_constants::ECMAScript | std::regex_constants::icase);
-	std::smatch multi_match;
+	std::wregex multi_reg(L"([0-9]{1,10}),([0-9]{1,10})", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	std::wsmatch multi_match;
 
 	FilterCondition condition = COND_NULL;
 	if (condition_map.find(key) != condition_map.end())
 	{
 		condition = condition_map[key];
 	}
-	else if (keylen >= 3 && !(isupper(key[0]) || isupper(key[1]) || isupper(key[2])))
+	else if (keylen >= 3 && !(iswupper(key[0]) || iswupper(key[1]) || iswupper(key[2])))
 	{
 		condition = COND_ITEMCODE;
 	}
-	else if (key.find('+') != std::string::npos)
+	else if (key.find(L'+') != std::wstring::npos)
 	{
 		condition = COND_ADD;
 	}
-	else if (key.compare(0, 2, "SK") == 0)
+	else if (key.compare(0, 2, L"SK") == 0)
 	{
 		condition = COND_SK;
-		number_ss = stringstream(key.substr(2));
+		number_ss = wstringstream(key.substr(2));
 	}
-	else if (key.compare(0, 2, "OS") == 0)
+	else if (key.compare(0, 2, L"OS") == 0)
 	{
 		condition = COND_OS;
-		number_ss = stringstream(key.substr(2));
+		number_ss = wstringstream(key.substr(2));
 	}
-	else if (key.compare(0, 4, "CHSK") == 0)
+	else if (key.compare(0, 4, L"CHSK") == 0)
 	{
 		condition = COND_CHSK;
-		number_ss = stringstream(key.substr(4));
+		number_ss = wstringstream(key.substr(4));
 	}
-	else if (key.compare(0, 4, "CLSK") == 0)
+	else if (key.compare(0, 4, L"CLSK") == 0)
 	{
 		condition = COND_CLSK;
-		number_ss = stringstream(key.substr(4));
+		number_ss = wstringstream(key.substr(4));
 	}
-	else if (key.compare(0, 5, "TABSK") == 0)
+	else if (key.compare(0, 5, L"TABSK") == 0)
 	{
 		condition = COND_TABSK;
-		number_ss = stringstream(key.substr(5));
+		number_ss = wstringstream(key.substr(5));
 	}
-	else if (key.compare(0, 4, "STAT") == 0)
+	else if (key.compare(0, 4, L"STAT") == 0)
 	{
 		condition = COND_STAT;
-		number_ss = stringstream(key.substr(4));
+		number_ss = wstringstream(key.substr(4));
 	}
-	else if (key.compare(0, 8, "CHARSTAT") == 0)
+	else if (key.compare(0, 8, L"CHARSTAT") == 0)
 	{
 		condition = COND_CHARSTAT;
-		number_ss = stringstream(key.substr(8));
+		number_ss = wstringstream(key.substr(8));
 	}
-	else if (key.compare(0, 5, "MULTI") == 0)
+	else if (key.compare(0, 5, L"MULTI") == 0)
 	{
 		condition = COND_MULTI;
+	}
+	else if (formulaMap.find(key) != formulaMap.end())
+	{
+		condition = COND_FORMULA;
 	}
 
 	switch (condition)
@@ -2286,6 +3993,12 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 		break;
 	case COND_OR:
 		Condition::AddNonOperand(conditions, new OrOperator());
+		break;
+	case COND_TRUE:
+		Condition::AddOperand(conditions, new TrueCondition());
+		break;
+	case COND_FALSE:
+		Condition::AddOperand(conditions, new FalseCondition());
 		break;
 	case COND_ETH:
 		Condition::AddOperand(conditions, new FlagsCondition(ITEM_ETHEREAL));
@@ -2328,6 +4041,9 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 		break;
 	case COND_CRAFTALVL:
 		Condition::AddOperand(conditions, new CraftLevelCondition(operation, value, value2));
+		break;
+	case COND_REROLLALVL:
+		Condition::AddOperand(conditions, new RerollLevelCondition(operation, value, value2));
 		break;
 	case COND_PREFIX:
 		Condition::AddOperand(conditions, new MagicPrefixCondition(operation, value, value2));
@@ -2373,6 +4089,18 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 		break;
 	case COND_ID:
 		Condition::AddOperand(conditions, new FlagsCondition(ITEM_IDENTIFIED));
+		break;
+	case COND_ANYDISCOVERED:
+		Condition::AddOperand(conditions, new DiscoveryStateCondition(DISCOVERYSTATE_ANYDISCOVERED));
+		break;
+	case COND_ALLDISCOVERED:
+		Condition::AddOperand(conditions, new DiscoveryStateCondition(DISCOVERYSTATE_ALLDISCOVERED));
+		break;
+	case COND_ANYOWNED:
+		Condition::AddOperand(conditions, new DiscoveryStateCondition(DISCOVERYSTATE_ANYOWNED));
+		break;
+	case COND_ALLOWNED:
+		Condition::AddOperand(conditions, new DiscoveryStateCondition(DISCOVERYSTATE_ALLOWNED));
 		break;
 	case COND_ILVL:
 		Condition::AddOperand(conditions, new ItemLevelCondition(operation, value, value2));
@@ -2489,10 +4217,10 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 		Condition::AddOperand(conditions, new ItemStatCondition(STAT_FASTERRUNWALK, 0, operation, value, value2));
 		break;
 	case COND_MINDMG:
-		Condition::AddOperand(conditions, new ItemStatCondition(STAT_MINIMUMDAMAGE, 0, operation, value, value2));
+		Condition::AddOperand(conditions, new MinMaxDamageCondition(MinMaxDamageCondition::DamageType::MIN, operation, value, value2));
 		break;
 	case COND_MAXDMG:
-		Condition::AddOperand(conditions, new ItemStatCondition(STAT_MAXIMUMDAMAGE, 0, operation, value, value2));
+		Condition::AddOperand(conditions, new MinMaxDamageCondition(MinMaxDamageCondition::DamageType::MAX, operation, value, value2));
 		break;
 	case COND_AR:
 		Condition::AddOperand(conditions, new ItemStatCondition(STAT_ATTACKRATING, 0, operation, value, value2));
@@ -2557,11 +4285,50 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 	case COND_ZON:
 		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_AMAZON_WEAPON, ITEMFLAG_WEAPON));
 		break;
+	case COND_MISC:
+		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_ALLMISC, ITEMFLAG_MISC));
+		break;
+	case COND_JEWELRY:
+		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_JEWELRY, ITEMFLAG_MISC));
+		break;
+	case COND_CHARM:
+		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_CHARM, ITEMFLAG_MISC));
+		break;
+	case COND_QUIVER:
+		Condition::AddOperand(conditions, new ItemGroupCondition(ITEM_GROUP_QUIVER, ITEMFLAG_MISC));
+		break;
 	case COND_SHOP:
 		Condition::AddOperand(conditions, new ShopCondition());
 		break;
 	case COND_EQUIPPED:
-		Condition::AddOperand(conditions, new EquippedCondition());
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_EQUIPPED));
+		break;
+	case COND_MERC:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_MERCEQUIPPED));
+		break;
+	case COND_INVENTORY:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_INVENTORY));
+		break;
+	case COND_CUBE:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_CUBE));
+		break;
+	case COND_STASH:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_STASH));
+		break;
+	case COND_GROUND:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_GROUND));
+		break;
+	case COND_COMPENDIUM:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_COMPENDIUM));
+		break;
+	case COND_PREVIEW:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_PREVIEW));
+		break;
+	case COND_GUILDVAULT:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_GUILDVAULT));
+		break;
+	case COND_TROPHYCASE:
+		Condition::AddOperand(conditions, new LocationCondition(LOCATIONFLAG_TROPHYCASE));
 		break;
 	case COND_1H:
 		Condition::AddOperand(conditions, new OneHandedCondition());
@@ -2665,17 +4432,131 @@ void Condition::BuildConditions(vector<Condition*>& conditions,
 			Condition::AddOperand(conditions, new ItemStatCondition(stat1, stat2, operation, value, value2));
 		}
 		break;
+	case COND_BUYPRICE:
+		Condition::AddOperand(conditions, new ItemPriceCondition(operation, value, value2, TRANSACTIONTYPE_BUY));
+		break;
 	case COND_PRICE:
-		Condition::AddOperand(conditions, new ItemPriceCondition(operation, value, value2));
+		Condition::AddOperand(conditions, new ItemPriceCondition(operation, value, value2, TRANSACTIONTYPE_SELL));
+		break;
+	case COND_WIDTH:
+		Condition::AddOperand(conditions, new ItemSizeCondition(operation, value, value2, ItemSizeCondition::Dimension::kWidth));
+		break;
+	case COND_HEIGHT:
+		Condition::AddOperand(conditions, new ItemSizeCondition(operation, value, value2, ItemSizeCondition::Dimension::kHeight));
+		break;
+	case COND_AREA:
+		Condition::AddOperand(conditions, new ItemSizeCondition(operation, value, value2, ItemSizeCondition::Dimension::kArea));
 		break;
 	case COND_ITEMCODE:
-		Condition::AddOperand(conditions, new ItemCodeCondition(key.substr(0, 4).c_str()));
+		Condition::AddOperand(conditions, new ItemCodeCondition(WideToAnsi(key.substr(0, 4)).c_str()));
 		break;
 	case COND_ADD:
 		Condition::AddOperand(conditions, new AddCondition(key, operation, value));
 		break;
+	case COND_REQSTAT:
+	{
+		auto type = ReqStatCondition::ReqStatType::STRENGTH;
+		if (key == L"REQDEX") {
+			type = ReqStatCondition::ReqStatType::DEXTERITY;
+		}
+		else if (key == L"REQLVL") {
+			type = ReqStatCondition::ReqStatType::LEVEL;
+		}
+		Condition::AddOperand(conditions, new ReqStatCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMIN1H:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MIN1H;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMIN2H:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MIN2H;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMINSMITE:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MINSMITE;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMINKICK:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MINKICK;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMINTHROW:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MINTHROW;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMAX1H:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MAX1H;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMAX2H:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MAX2H;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMAXSMITE:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MAXSMITE;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMAXKICK:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MAXKICK;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEDAMAGEMAXTHROW:
+	{
+		auto type = BaseWeaponDamageCondition::DamageType::MAXTHROW;
+		Condition::AddOperand(conditions, new BaseWeaponDamageCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_BASEBLOCK:
+		Condition::AddOperand(conditions, new BaseBlockCondition(operation, value, value2));
+		break;
+	case COND_ALLATTRIB:
+		Condition::AddOperand(conditions, new AllAttributesCondition(operation, value, value2));
+		break;
+	case COND_MAXRES:
+		Condition::AddOperand(conditions, new MaxResCondition(operation, value, value2));
+		break;
+	case COND_PLUSDEF:
+		Condition::AddOperand(conditions, new PlusDefCondition(operation, value, value2));
+		break;
+	case COND_UPSTAT:
+	{
+		auto type = UpStatCondition::UpStatType::STRENGTH;
+		if (key == L"UPDEX") {
+			type = UpStatCondition::UpStatType::DEXTERITY;
+		}
+		else if (key == L"UPLVL") {
+			type = UpStatCondition::UpStatType::LEVEL;
+		}
+		Condition::AddOperand(conditions, new UpStatCondition(type, operation, value, value2));
+		break;
+	}
+	case COND_MAXSOCKETS:
+		Condition::AddOperand(conditions, new MaxSocketsCondition(operation, value, value2));
+		break;
 
 	case COND_NULL:
+		break;
+	case COND_FORMULA:
+		Condition::AddOperand(conditions, new FormulaCondition(key, operation, value, value2));
 		break;
 	default:
 		break;
@@ -2775,6 +4656,26 @@ bool QualityCondition::EvaluateInternal(UnitItemInfo* uInfo,
 	Condition* arg1,
 	Condition* arg2) {
 	return (uInfo->item->pItemData->dwQuality == quality);
+}
+
+bool DiscoveryStateCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2) {
+	if (!uInfo->item || !uInfo->item->pItemData)
+	{
+		return false;
+	}
+	// Backed by the ProjectDiablo.dll discovery export (resolved in
+	// BH::CheckForPD2); the conditions evaluate to false when
+	// ProjectDiablo.dll is absent.
+	if (!App.pd2.pd2GetItemDiscoveryStateImpl) { return false; }
+	ItemData* pItemData = uInfo->item->pItemData;
+	// Unidentified unique/set drops have no file index client-side; pass the
+	// unset sentinel so the dll covers "all the variants it could be" via
+	// the base item's code.
+	DWORD dwFileIndex = (pItemData->dwFlags & ITEM_IDENTIFIED) ? pItemData->dwFileIndex : 0xFFFFFFFF;
+	DWORD dwState = App.pd2.pd2GetItemDiscoveryStateImpl(dwFileIndex, pItemData->dwQuality, uInfo->item->dwTxtFileNo);
+	return (dwState & discoveryFlag) > 0;
 }
 
 bool NonMagicalCondition::EvaluateInternal(UnitItemInfo* uInfo,
@@ -2888,6 +4789,46 @@ bool CraftLevelCondition::EvaluateInternal(UnitItemInfo* uInfo,
 	);
 
 	return IntegerCompare(craft_alvl, operation, craftLevel, craftLevel2);
+}
+
+bool RerollLevelCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	int rerollAlvl = ComputeRerollAffixLevel(uInfo);
+	return IntegerCompare(rerollAlvl, operation_, rerollLevel1_, rerollLevel2_);
+}
+
+BYTE ComputeRerollAffixLevel(UnitItemInfo* uInfo) {
+	// Maps cannot be rerolled using the standard recipe.
+	if (uInfo->attrs->miscFlags & ITEM_GROUP_MAP) {
+		return 0;
+	}
+
+	// Corrupted items cannot be rerolled.
+	if (D2COMMON_GetUnitStat(uInfo->item, STAT_CORRUPTED, 0) > 0) {
+		return 0;
+	}
+
+	BYTE ilvl = uInfo->item->pItemData->dwItemLevel;
+	BYTE reroll_ilvl;
+
+	switch (uInfo->item->pItemData->dwQuality) {
+		case ITEM_QUALITY_RARE:	{
+			BYTE clvl = D2COMMON_GetUnitStat(D2CLIENT_GetPlayerUnit(), STAT_LEVEL, 0);
+			reroll_ilvl = (int)(0.4 * ilvl) + (int)(0.4 * clvl);
+			break;
+		}
+		case ITEM_QUALITY_MAGIC:
+			reroll_ilvl = ilvl;
+			break;
+		default:
+			return 0;
+	}
+
+	BYTE qlvl = uInfo->attrs->qualityLevel;
+	BYTE mlvl = uInfo->attrs->magicLevel;
+	return GetAffixLevel(reroll_ilvl, qlvl, mlvl);
 }
 
 bool MagicPrefixCondition::EvaluateInternal(UnitItemInfo* uInfo,
@@ -3091,17 +5032,11 @@ bool FoolsCondition::EvaluateInternal(UnitItemInfo* uInfo,
 	return IntegerCompare(value, (BYTE)EQUAL, 3);
 }
 
-bool EquippedCondition::EvaluateInternal(UnitItemInfo* uInfo,
+bool LocationCondition::EvaluateInternal(UnitItemInfo* uInfo,
 	Condition* arg1,
 	Condition* arg2)
 {
-	bool is_equipped = false;
-	if (uInfo->item->pItemData->BodyLocation > 0 && uInfo->item->pItemData->ItemLocation == STORAGE_NULL)
-	{
-		is_equipped = true;
-	}
-
-	return IntegerCompare(is_equipped, (BYTE)EQUAL, 1);
+	return IntegerCompare(ItemHasLocation(uInfo, location), (BYTE)EQUAL, 1);
 }
 
 bool ShopCondition::EvaluateInternal(UnitItemInfo* uInfo,
@@ -3267,7 +5202,9 @@ bool ItemStatCondition::EvaluateInternal(UnitItemInfo* uInfo,
 		itemStat == STAT_MINIMUMDAMAGE ||				// return base min 1h weapon damage
 		itemStat == STAT_MAXIMUMDAMAGE ||				// return base max 1h weapon damage
 		itemStat == STAT_SECONDARYMINIMUMDAMAGE ||		// return base min 2h weapon damage
-		itemStat == STAT_SECONDARYMAXIMUMDAMAGE			// return base max 2h weapon damage
+		itemStat == STAT_SECONDARYMAXIMUMDAMAGE	||		// return base max 2h weapon damage
+		itemStat == STAT_MINIMUMTHROWINGDAMAGE ||		// return min throw weapon damage
+		itemStat == STAT_MAXIMUMTHROWINGDAMAGE			// return max throw weapon damage
 		)
 	{
 		return IntegerCompare(GetStatFromList(uInfo, itemStat), operation, targetStat, targetStat2);
@@ -3280,7 +5217,30 @@ bool ItemPriceCondition::EvaluateInternal(UnitItemInfo* uInfo,
 	Condition* arg1,
 	Condition* arg2)
 {
-	return IntegerCompare(D2COMMON_GetItemPrice(D2CLIENT_GetPlayerUnit(), uInfo->item, D2CLIENT_GetDifficulty(), (DWORD)D2CLIENT_GetQuestInfo(), 0x201, 1), operation, targetStat, targetStat2);
+	int nPrice = GetShopPrice(D2CLIENT_GetPlayerUnit(), uInfo->item, nTransactionType);
+	return IntegerCompare(nPrice, operation, targetStat, targetStat2);
+}
+
+bool ItemSizeCondition::EvaluateInternal(UnitItemInfo* uInfo, Condition* arg1, Condition* arg2)
+{
+	int value;
+	auto attrs = uInfo->attrs;
+
+	switch (dimension_) {
+		case ItemSizeCondition::Dimension::kHeight:
+			value = attrs->height;
+			break;
+		case ItemSizeCondition::Dimension::kWidth:
+			value = attrs->width;
+			break;
+		case ItemSizeCondition::Dimension::kArea:
+			value = attrs->height * attrs->width;
+			break;
+		default:
+			return false;
+	}
+
+	return IntegerCompare(value, op_, targetStat_, targetStat2_);
 }
 
 bool ResistAllCondition::EvaluateInternal(UnitItemInfo* uInfo,
@@ -3299,24 +5259,33 @@ bool ResistAllCondition::EvaluateInternal(UnitItemInfo* uInfo,
 
 void AddCondition::Init()
 {
-	static regex statRegex("([A-Z_]+)(?:(\\d{1,9})(?:,(\\d{1,9}))?)?", regex::ECMAScript);
+	static wregex statRegex(L"([A-Z_]+)(?:(\\d{1,9})(?:,(\\d{1,9}))?)?", wregex::ECMAScript);
 	codes.clear();
-	codes = split(key, '+');
+	codes = wsplit(key, L'+');
 	for (auto code : codes)
 	{
-		smatch match;
+		wsmatch match;
 		if (regex_search(code, match, statRegex)) {
 			if (skills.find(match[1]) == skills.end()) {
+				if (formulaMap.find(match[1]) == formulaMap.end()) {
+					continue;
+				}
+				fs.emplace_back(formulaMap.find(match[1])->second);
 				continue;
 			}
-			DWORD id = skills.find(match[1])->second.id;
-			DWORD params = skills.find(match[1])->second.params;
+			auto found = skills.find(match[1]);
+			DWORD id = found->second.id;
+			DWORD params = found->second.params;
 			int paramCount = (match[2].length() != 0) + (match[3].length() != 0);
 			if (params != paramCount) {
 				continue;
 			}
 			int param1 = match[2].length() > 0 ? stoi(match[2].str()) : id;
 			int param2 = match[3].length() > 0 ? stoi(match[3].str()) : 0;
+			if (match[1] == L"MAXDMG" || match[1] == L"MINDMG") {
+				stats.emplace_back(param1, INT_MAX);
+				continue;
+			}
 			stats.emplace_back(param1, param2);
 		}
 	}
@@ -3336,6 +5305,11 @@ bool AddCondition::EvaluateInternal(UnitItemInfo* uInfo,
 		{
 			tmpVal /= 256;
 		}
+		// layer used to flag MIN/MAXDMG named stat
+		else if (layer == INT_MAX && (stat == STAT_MINIMUMDAMAGE || stat == STAT_MAXIMUMDAMAGE))
+		{
+			tmpVal = MinMaxDamageCondition::GetValue((MinMaxDamageCondition::DamageType)(stat - STAT_MINIMUMDAMAGE), uInfo);
+		}
 		else if (
 			stat == STAT_ENHANCEDDEFENSE ||				// return 0
 			stat == STAT_ENHANCEDMAXIMUMDAMAGE ||		// return 0
@@ -3343,15 +5317,325 @@ bool AddCondition::EvaluateInternal(UnitItemInfo* uInfo,
 			stat == STAT_MINIMUMDAMAGE ||				// return base min 1h weapon damage
 			stat == STAT_MAXIMUMDAMAGE ||				// return base max 1h weapon damage
 			stat == STAT_SECONDARYMINIMUMDAMAGE ||		// return base min 2h weapon damage
-			stat == STAT_SECONDARYMAXIMUMDAMAGE			// return base max 2h weapon damage
+			stat == STAT_SECONDARYMAXIMUMDAMAGE	||		// return base max 2h weapon damage
+			stat == STAT_MINIMUMTHROWINGDAMAGE ||		// return min throw weapon damage
+			stat == STAT_MAXIMUMTHROWINGDAMAGE		    // return max throw weapon damage
 			)
 		{
 			tmpVal = GetStatFromList(uInfo, stat);
 		}
 		value += tmpVal;
 	}
+	float fvalue = 0.0f;
+	for (const auto& f : fs)
+	{
+		float out;
+		if (f->execute(uInfo, out) == FormulaStatus::OK)
+		{
+			fvalue += out;
+		}
+	}
 
+	if (fs.size() > 0) {
+		return FloatCompare(value + fvalue, operation, targetStat);
+	}
 	return IntegerCompare(value, operation, targetStat);
+}
+
+int ReqStatCondition::GetValue(ReqStatType type, UnitItemInfo* info)
+{
+	auto txt = D2COMMON_GetItemText(info->item->dwTxtFileNo);
+	if (!txt) {
+		return 0;
+	}
+	if (type == ReqStatType::LEVEL) {
+		return D2COMMON_GetItemLevelRequirement(info->item, D2CLIENT_GetPlayerUnit());
+	}
+	int req = type == ReqStatType::STRENGTH ? txt->wreqstr : txt->wreqdex;
+	int ease = D2COMMON_GetUnitStat(info->item, STAT_REDUCEDREQUIREMENTS, 0);
+
+	int delta = req * ease / 100;
+	if (info->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+		delta -= 10;
+	}
+
+	return (std::max)(0, req + delta);
+}
+
+bool ReqStatCondition::EvaluateInternal(UnitItemInfo* info, Condition* arg1, Condition* arg2)
+{
+	return IntegerCompare(GetValue(type, info), operation, targetStat, targetStat2);
+}
+
+int BaseWeaponDamageCondition::GetValue(DamageType type, UnitItemInfo* uInfo)
+{
+	auto txt = D2COMMON_GetItemText(uInfo->item->dwTxtFileNo);
+	const auto etherealDamage = [](int damage) {
+		return (damage + damage / 2) * 5 / 6;
+	};
+	switch (type) {
+		case DamageType::MINSMITE:
+		{
+			if (!(uInfo->attrs->armorFlags & ITEM_GROUP_SHIELD)) {
+				return 0;
+			}
+			return txt->bmindam;
+		}
+		case DamageType::MINKICK:
+		{
+			if (!(uInfo->attrs->armorFlags & ITEM_GROUP_BOOTS)) {
+				return 0;
+			}
+			return txt->bmindam;
+		}
+		case DamageType::MIN1H:
+		{
+			if (uInfo->attrs->armorFlags & (ITEM_GROUP_SHIELD | ITEM_GROUP_BOOTS)) {
+				return 0;
+			}
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->bmindam);
+			}
+			return txt->bmindam;
+		}
+		case DamageType::MAXSMITE:
+		{
+			if (!(uInfo->attrs->armorFlags & ITEM_GROUP_SHIELD)) {
+				return 0;
+			}
+			return txt->bmaxdam;
+		}
+		case DamageType::MAXKICK:
+		{
+			if (!(uInfo->attrs->armorFlags & ITEM_GROUP_BOOTS)) {
+				return 0;
+			}
+			return txt->bmaxdam;
+		}
+		case DamageType::MAX1H:
+		{
+			if (uInfo->attrs->armorFlags & (ITEM_GROUP_SHIELD | ITEM_GROUP_BOOTS)) {
+				return 0;
+			}
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->bmaxdam);
+			}
+			return txt->bmaxdam;
+		}
+		case DamageType::MIN2H:
+		{
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->b2handmindam);
+			}
+			return txt->b2handmindam;
+		}
+		case DamageType::MAX2H:
+		{
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->b2handmaxdam);
+			}
+			return txt->b2handmaxdam;
+		}
+		case DamageType::MINTHROW:
+		{
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->bminmisdam);
+			}
+			return txt->bminmisdam;
+		}
+		case DamageType::MAXTHROW:
+		{
+			if (uInfo->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+				return etherealDamage(txt->bmaxmisdam);
+			}
+			return txt->bmaxmisdam;
+		}
+	}
+	return 0;
+}
+
+bool BaseWeaponDamageCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(type, uInfo), operation, targetStat, targetStat2);
+}
+
+int BaseBlockCondition::GetValue(UnitItemInfo* uInfo)
+{
+	auto txt = D2COMMON_GetItemText(uInfo->item->dwTxtFileNo);
+	return txt->bblock;
+}
+
+bool BaseBlockCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(uInfo), operation, targetStat, targetStat2);
+}
+
+int AllAttributesCondition::GetValue(UnitItemInfo* uInfo)
+{
+	int str = D2COMMON_GetUnitStat(uInfo->item, STAT_STRENGTH, 0);
+	int dex = D2COMMON_GetUnitStat(uInfo->item, STAT_DEXTERITY, 0);
+	int ene = D2COMMON_GetUnitStat(uInfo->item, STAT_ENERGY, 0);
+	int vit = D2COMMON_GetUnitStat(uInfo->item, STAT_VITALITY, 0);
+	if (str && dex && ene && vit) {
+		return min(min(str, dex), min(vit, ene));
+	}
+	return 0;
+}
+
+bool AllAttributesCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(uInfo), operation, targetStat, targetStat2);
+}
+
+int MaxResCondition::GetValue(UnitItemInfo* uInfo)
+{
+	int maxFire = D2COMMON_GetUnitStat(uInfo->item, STAT_MAXFIRERESIST, 0);
+	int maxCold = D2COMMON_GetUnitStat(uInfo->item, STAT_MAXCOLDRESIST, 0);
+	int maxLight = D2COMMON_GetUnitStat(uInfo->item, STAT_MAXLIGHTNINGRESIST, 0);
+	int maxPois = D2COMMON_GetUnitStat(uInfo->item, STAT_MAXPOISONRESIST, 0);
+	if (maxFire && maxCold && maxLight && maxPois) {
+		return min(min(maxFire, maxCold), min(maxLight, maxPois));
+	}
+	return 0;
+}
+
+bool MaxResCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(uInfo), operation, targetStat, targetStat2);
+}
+
+// Defense added by the item's affixes, runeword or sockets, without its base defense (DEF includes both)
+int PlusDefCondition::GetValue(UnitItemInfo* uInfo)
+{
+	return GetStatFromList(uInfo, STAT_DEFENSE);
+}
+
+bool PlusDefCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(uInfo), operation, targetStat, targetStat2);
+}
+
+ItemsTxt* UpStatCondition::GetUpTxt(UnitItemInfo* info)
+{
+	auto txt = D2COMMON_GetItemText(info->item->dwTxtFileNo);
+	if (!txt) {
+		return nullptr;
+	}
+	int id = 0;
+	if (txt->dwnormcode == txt->dwcode) {
+		return D2COMMON_GetItemTextFromItemCode(txt->dwubercode, &id);
+	}
+	if (txt->dwubercode == txt->dwcode) {
+		return D2COMMON_GetItemTextFromItemCode(txt->dwultracode, &id);
+	}
+	return nullptr;
+}
+
+int UpStatCondition::GetValue(UpStatType type, UnitItemInfo* info)
+{
+	auto upTxt = GetUpTxt(info);
+	if (!upTxt) {
+		return 0;
+	}
+	if (type == UpStatType::LEVEL) {
+		auto currentReq = D2COMMON_GetItemLevelRequirement(info->item, D2CLIENT_GetPlayerUnit());
+		return max(upTxt->blevelreq, currentReq);
+	}
+	int req = type == UpStatType::STRENGTH ? upTxt->wreqstr : upTxt->wreqdex;
+	int ease = D2COMMON_GetUnitStat(info->item, STAT_REDUCEDREQUIREMENTS, 0);
+
+	int delta = req * ease / 100;
+	if (info->item->pItemData->dwFlags & ITEM_ETHEREAL) {
+		delta -= 10;
+	}
+
+	return (std::max)(0, req + delta);
+}
+
+bool UpStatCondition::EvaluateInternal(UnitItemInfo* info, Condition* arg1, Condition* arg2)
+{
+	return IntegerCompare(GetValue(type, info), operation, targetStat, targetStat2);
+}
+
+int MaxSocketsCondition::GetValue(UnitItemInfo* uInfo)
+{
+	BYTE res = D2COMMON_GetMaxSockets(uInfo->item);
+	auto txt = D2COMMON_GetItemText(uInfo->item->dwTxtFileNo);
+	return min(res, txt->binvheight * txt->binvwidth);
+}
+
+bool MaxSocketsCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(GetValue(uInfo), operation, targetStat, targetStat2);
+}
+
+FormulaCondition::FormulaCondition(wstring& k,
+	BYTE         op,
+	unsigned int target,
+	unsigned int target2) : key(k),
+	operation(op),
+	targetStat(target),
+	targetStat2(target2)
+{
+	conditionType = CT_Operand;
+	f = formulaMap.find(key)->second.get();
+};
+
+int MinMaxDamageCondition::GetValue(DamageType type, UnitItemInfo* uInfo)
+{
+	switch (type) {
+		case DamageType::MIN:
+		{
+			int one = GetAdjustedUnitStat(uInfo, STAT_MINIMUMDAMAGE, 0);
+			int two = GetAdjustedUnitStat(uInfo, STAT_SECONDARYMINIMUMDAMAGE, 0);
+			int thr = GetAdjustedUnitStat(uInfo, STAT_MINIMUMTHROWINGDAMAGE, 0);
+			return max(one, max(two, thr));
+		}
+		case DamageType::MAX:
+		{
+			int one = GetAdjustedUnitStat(uInfo, STAT_MAXIMUMDAMAGE, 0);
+			int two = GetAdjustedUnitStat(uInfo, STAT_SECONDARYMAXIMUMDAMAGE, 0);
+			int thr = GetAdjustedUnitStat(uInfo, STAT_MAXIMUMTHROWINGDAMAGE, 0);
+			return max(one, max(two, thr));
+			return 0;
+		}
+	}
+	return 0;
+}
+
+bool MinMaxDamageCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	return IntegerCompare(MinMaxDamageCondition::GetValue(type, uInfo), operation, targetStat, targetStat2);
+}
+
+bool FormulaCondition::EvaluateInternal(UnitItemInfo* uInfo,
+	Condition* arg1,
+	Condition* arg2)
+{
+	float out;
+	if (f->execute(uInfo, out) != FormulaStatus::OK)
+	{
+		return false;
+	}
+	if (operation == NONE)
+	{
+		return Formula<FormulaContext>::IsTrue(out);
+	}
+	return FloatCompare(out, operation, targetStat, targetStat2);
 }
 
 int GetStatFromList(UnitItemInfo* uInfo, int itemStat)
@@ -3398,4 +5682,3 @@ void HandleUnknownItemCode(char* code,
 		UnknownItemCodes[code] = 1;
 	}
 }
-

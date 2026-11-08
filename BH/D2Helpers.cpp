@@ -77,6 +77,35 @@ int GetRelation(UnitAny* unit) {
 	return 2;//Neutral
 }
 
+UnitAny* __stdcall GetClientMercUnit()
+{
+	UnitAny* pMerc = NULL;
+	UnitAny* pPlayer = *p_D2CLIENT_PlayerUnit;
+	ClientPetData* pPetData = *p_D2CLIENT_ClientPetData;
+	if (pPlayer)
+	{
+		while (pPetData)
+		{
+			if (pPetData->nPetTypeId == PETTYPE_HIREABLE)
+			{
+				if (pPetData->nOwnerId == pPlayer->dwUnitId && pPetData->nOwnerType == UNIT_PLAYER)
+				{
+					int nPetUnitId = pPetData->nPetUnitId;
+					if (nPetUnitId != -1)
+					{
+						pMerc = D2CLIENT_FindServerSideUnit(nPetUnitId, UNIT_MONSTER);
+						return pMerc;
+					}
+				}
+			}
+
+			pPetData = pPetData->pNext;
+		}
+	}
+
+	return pMerc;
+}
+
 bool IsValidMonster(UnitAny* pUnit)
 {
 	//Have we even been given a unit?
@@ -110,13 +139,10 @@ bool IsValidMonster(UnitAny* pUnit)
 		return false;
 
 	wchar_t* name = D2CLIENT_GetUnitName(pUnit);
-	char* tmp = UnicodeToAnsi(name);
 
-	if ((strcmp(tmp, "an evil force") == 0) || (strcmp(tmp, "dummy") == 0) || (strcmp(tmp, "Maggot") == 0)) {
-		delete[] tmp;
+	if ((wcscmp(name, L"an evil force") == 0) || (wcscmp(name, L"dummy") == 0) || (wcscmp(name, L"Maggot") == 0)) {
 		return false;
 	}
-	delete[] tmp;
 
 	return true;
 }
@@ -366,4 +392,180 @@ wchar_t* GetTblEntryByIndex(int nIndex, int nOffset)
 {
 	int nEntryIndex = nIndex + nOffset;
 	return D2LANG_GetLocaleText(nEntryIndex);
+}
+
+SkillsTxt* __fastcall GetSkillRecord(int nSkill)
+{
+	sgptDataTable* pDataTable;
+	pDataTable = *p_D2COMMON_sgptDataTable;
+
+	if (nSkill < 0 || pDataTable->dwSkillsRecs <= nSkill)
+	{
+		return 0;
+	}
+
+	if (!pDataTable->pSkillsTxt)
+	{
+		return 0;
+	}
+
+	return &(pDataTable->pSkillsTxt[nSkill]);
+}
+
+int __stdcall GetMasteryStat(UnitAny* pUnit, int nStatId, int nSkill)
+{
+	if (pUnit)
+	{
+		Skill* pSkill = GetSkillFromUnitBySkillId(pUnit, nSkill);
+		if (pSkill)
+		{
+			Skill* pRightSkill = D2COMMON_10507_UNITS_GetRightSkill(pUnit);
+			int nRightSkill = 0;
+			if (pRightSkill && pRightSkill->pSkillInfo)
+			{
+				nRightSkill = pRightSkill->pSkillInfo->wSkillId;
+			}
+
+			int nSkillLevel = D2COMMON_GetSkillLevel(pUnit, pSkill, TRUE);
+			SkillsTxt* pSkillsTxt = GetSkillRecord(nSkill);
+			SkillsTxt* pRightSkillsTxt = GetSkillRecord(nRightSkill);
+			UnitAny* pItem = D2COMMON_10061_INVENTORY_GetLeftHandWeapon(pUnit->pInventory);
+			if (pSkillsTxt && pRightSkill)
+			{
+				int nItemType = pSkillsTxt->wPassiveiType;
+				int nRightSkillItemType = pRightSkillsTxt->wITypeA1;
+				if (nItemType <= 0)
+				{
+					return 0;
+				}
+
+				int nStatValue = 0;
+				int nMasteryValue = 0;
+				switch (nStatId)
+				{
+				case STAT_CRUSHINGBLOW:
+				{
+					if (nSkill == SKILL_TWOHANDMASTERY)
+					{
+						nStatValue = D2COMMON_10786_SKILLS_EvaluateSkillFormula(pUnit, pSkillsTxt->dwPassiveCalc3, nSkill, nSkillLevel);
+						nMasteryValue = 0;
+					}
+				}
+					break;
+				case STAT_CRUSHINGBLOW_EFFICIENCY:
+				{
+					if (nSkill == SKILL_TWOHANDMASTERY)
+					{
+						nStatValue = D2COMMON_10786_SKILLS_EvaluateSkillFormula(pUnit, pSkillsTxt->dwPassiveCalc4, nSkill, nSkillLevel);
+						nMasteryValue = 0;
+					}
+				}
+					break;
+				case STAT_CRITICALSTRIKE:
+				{
+					if (((nSkill == SKILL_ONEHANDMASTERY && D2COMMON_11034_ITEMS_CheckItemTypes(nRightSkillItemType, ITEM_TYPE_WEAPON) && !D2COMMON_11034_ITEMS_CheckItemTypes(nRightSkillItemType, ITEM_TYPE_MISSILE_WEAPON) && !D2COMMON_11034_ITEMS_CheckItemTypes(nRightSkillItemType, ITEM_TYPE_THROWN_WEAPON)) || nRightSkillItemType <= 0) ||
+						(nSkill == SKILL_CLAWANDDAGGERMASTERY && D2COMMON_11034_ITEMS_CheckItemTypes(ITEM_TYPE_HAND_TO_HAND, nRightSkillItemType)) ||
+						(nSkill == SKILL_THROWINGMASTERY && D2COMMON_11034_ITEMS_CheckItemTypes(nRightSkillItemType, ITEM_TYPE_THROWN_WEAPON)))
+					{
+						nStatValue = D2COMMON_10786_SKILLS_EvaluateSkillFormula(pUnit, pSkillsTxt->dwPassiveCalc3, nSkill, nSkillLevel);
+						nMasteryValue = nStatValue;
+					}
+				}
+					break;
+				case STAT_CRITICALSTRIKE_MULTIPLIER:
+				{
+					if (nSkill == SKILL_JAVELINANDSPEARMASTERY)
+					{
+						nStatValue = D2COMMON_10786_SKILLS_EvaluateSkillFormula(pUnit, pSkillsTxt->dwPassiveCalc2, nSkill, nSkillLevel);
+						nMasteryValue = 0;
+					}
+				}
+					break;
+				case STAT_PIERCE:
+				{
+					if (nSkill == SKILL_THROWINGMASTERY)
+					{
+						nStatValue = D2COMMON_10786_SKILLS_EvaluateSkillFormula(pUnit, pSkillsTxt->dwPassiveCalc4, nSkill, nSkillLevel);
+						nMasteryValue = 0;
+					}
+				}
+					break;
+				default:
+					break;
+				}
+
+				// Allow one handed melee stats to apply to two handed weapons if wielded by a barb
+				if (pItem && (D2COMMON_10744_ITEMS_IsMatchingType(pItem, nItemType) ||
+					(D2COMMON_UnitCanDualWield(pUnit) && nItemType == ITEM_TYPE_ONEHANDED_MELEE_WEAPON && D2COMMON_10744_ITEMS_IsMatchingType(pItem, ITEM_TYPE_TWOHANDED_MELEE_WEAPON))))
+				{
+					if (nItemType == ITEM_TYPE_TWOHANDED_MELEE_WEAPON)
+					{
+						int nBodyLoc = D2COMMON_ItemGetBodyLocation(pItem);
+						UnitAny* pSecondaryWeapon = D2COMMON_11139_INVENTORY_GetItemFromBodyLoc(pUnit->pInventory, ((nBodyLoc & 0xFF) == 4) + 4);
+						if (pSecondaryWeapon && pSecondaryWeapon != pItem)
+						{
+							if (nStatId == STAT_CRUSHINGBLOW || nStatId == STAT_CRUSHINGBLOW_EFFICIENCY || nStatId == STAT_CRITICALSTRIKE_MULTIPLIER)
+							{
+								return -nStatValue;
+							}
+							else
+							{
+								return 0;
+							}
+						}
+					}
+					else if (nItemType == ITEM_TYPE_ONEHANDED_MELEE_WEAPON)
+					{
+						int nBodyLoc = D2COMMON_ItemGetBodyLocation(pItem);
+						UnitAny* pSecondaryWeapon = D2COMMON_11139_INVENTORY_GetItemFromBodyLoc(pUnit->pInventory, ((nBodyLoc & 0xFF) == 4) + 4);
+						if ((D2COMMON_10744_ITEMS_IsMatchingType(pItem, ITEM_TYPE_TWOHANDED_MELEE_WEAPON) && !pSecondaryWeapon) || (pSecondaryWeapon && pSecondaryWeapon == pItem))
+						{
+							if (nStatId == STAT_CRUSHINGBLOW || nStatId == STAT_CRUSHINGBLOW_EFFICIENCY || nStatId == STAT_CRITICALSTRIKE_MULTIPLIER)
+							{
+								return -nStatValue;
+							}
+							else
+							{
+								return 0;
+							}
+						}
+					}
+
+					return nMasteryValue;
+				}
+				else
+				{
+					if (nStatId == STAT_PIERCE)
+					{
+						return -nStatValue;
+					}
+					else
+					{
+						return 0;
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+Skill* __stdcall GetSkillFromUnitBySkillId(UnitAny* pUnit, int nSkillId)
+{
+	if (pUnit == NULL)
+	{
+		return NULL;
+	}
+
+	Skill* pSkill = D2COMMON_GetStartSkill(pUnit);
+	while (pSkill)
+	{
+		if (pSkill->pSkillInfo->wSkillId == nSkillId)
+		{
+			return pSkill;
+		}
+		pSkill = pSkill->pNextSkill;
+	}
+	return NULL;
 }

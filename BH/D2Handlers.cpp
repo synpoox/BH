@@ -47,6 +47,7 @@ LONG WINAPI GameWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 	bool blockEvent = false;
 	int mouseX = (*p_D2CLIENT_MouseX);
 	int mouseY = (*p_D2CLIENT_MouseY);
+	bool ctrlState = GetAsyncKeyState(VK_CONTROL) & 0x8000;
 
 	if (uMsg == WM_LBUTTONDOWN) {
 		if (Drawing::Hook::LeftClick(false, mouseX, mouseY))
@@ -88,7 +89,7 @@ LONG WINAPI GameWindowEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		__raise BH::moduleManager->OnRightClick(true, mouseX, mouseY, &blockEvent);
 	}
 
-	if (!D2CLIENT_GetUIState(0x05)) {
+	if ((ctrlState && wParam == 0x56) || !D2CLIENT_GetUIState(UI_CHAT_CONSOLE)) {
 		if (uMsg == WM_KEYDOWN) {
 			if (Drawing::Hook::KeyClick(false, wParam, lParam))
 				return NULL;

@@ -42,6 +42,7 @@ class ScreenInfo : public Module {
 		int startLevel;
 
 		void ScreenInfo::drawExperienceInfo();
+		void ScreenInfo::PasteFromClipboard();
 	public:
 		ScreenInfo() :
 			Module("Screen Info"), warningTicks(BHGetTickCount()), packetRequests(0),

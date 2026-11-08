@@ -13,7 +13,7 @@ struct Rule;
 
 template <typename T, typename... Args>
 class RuleLookupCache {
-	std::unique_ptr<cache::lru_cache<DWORD, std::pair<DWORD, T>>> cache;
+	std::unique_ptr<cache::lru_cache<DWORD, std::pair<DWORDLONG, T>>> cache;
 
 protected:
 	const std::vector<Rule*>& RuleList;
@@ -25,11 +25,11 @@ protected:
 
 public:
 	RuleLookupCache(const std::vector<Rule*>& rule_list)
-		: RuleList(rule_list), cache(new cache::lru_cache<DWORD, std::pair<DWORD, T>>(100)) {}
+		: RuleList(rule_list), cache(new cache::lru_cache<DWORD, std::pair<DWORDLONG, T>>(100)) {}
 
 	void ResetCache() {
 		//PrintText(1, "Reseting LRU cache.");
-		cache.reset(new cache::lru_cache<DWORD, std::pair<DWORD, T>>(100));
+		cache.reset(new cache::lru_cache<DWORD, std::pair<DWORDLONG, T>>(100));
 	}
 
 	// TODO: UnitItemInfo should probably be const, but call to Evaluate needs non-const
@@ -41,8 +41,8 @@ public:
 		// on item flag changes. This should cover everything that I can think of, including IDing
 		// items, crafting items, making runewords, etc. Still would be nice to get some reassurance
 		// that GUIDs aren't reused in some unexpected way. Having a cache that is wrong is no bueno.
-		DWORD flags = uInfo->item->pItemData->dwFlags;
-		DWORD orig_cached_flags; // the cached flags
+		DWORDLONG flags = DWORDLONG(uInfo->item->pItemData->dwFlags) | (DWORDLONG(uInfo->item->dwMode) << DWORDLONG(32)) | (DWORDLONG(uInfo->item->pItemData->ItemLocation) << DWORDLONG(40));
+		DWORDLONG orig_cached_flags; // the cached flags
 		T cached_T; // the cached T after rules applied
 		bool cache_hit = false;
 		// First check if the name exists in the cache
@@ -64,7 +64,7 @@ public:
 		if (!cache_hit) {
 			cached_T = make_cached_T(uInfo, pack...);
 			if (cache && !cache_hit) {
-				std::pair<DWORD, T> pair_to_cache(flags, cached_T);
+				std::pair<DWORDLONG, T> pair_to_cache(flags, cached_T);
 				cache->put(guid, pair_to_cache);
 				//PrintText(1, "Adding key value pair %u, (%s, %x) to cache.", guid, to_str(cached_T).c_str(), flags);
 			}

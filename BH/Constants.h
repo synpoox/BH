@@ -8,12 +8,12 @@
 #define SETTINGS_SIZE_X 400
 #define SETTINGS_SIZE_Y 366
 
-#define CODE_PAGE 1252 // windows-1252	ANSI Latin 1; Western European (Windows)
+#define CODE_PAGE CP_UTF8 // 65001 - UTF-8: supports all Unicode languages
 
 #define MAX_ITEM_NAME_SIZE 56
 #define MAX_ITEM_TEXT_SIZE 512 // Half of the maximum in-game limit
 #define BOOK_NAME_SIZE_LIMIT 127 // TP & ID Tomes have a smaller limit for some reason
-#define ITEM_TEXT_SIZE_LIMIT 4095 // This limit actually seems to be much higher, in the assembly the item properties alone is size 4096
+#define ITEM_TEXT_SIZE_LIMIT 1023
 
 enum TextColor {
 	Disabled = -1,
@@ -70,7 +70,7 @@ enum Font
 #define UI_CHAT_CONSOLE			0x05
 #define UI_UNK					0x06   //auto disabled
 #define UI_UNK_EX				0x07   //auto disabled
-#define UI_NPCMENU				0x08	
+#define UI_NPCMENU				0x08
 #define UI_DIALOG				0x08
 #define UI_ESCMENU_MAIN			0x09
 #define UI_AUTOMAP				0x0A
@@ -135,6 +135,40 @@ enum Font
 #define PLAYER_TYPE_DEAD		8
 #define PLAYER_TYPE_EXPANSION	32
 #define PLAYER_TYPE_LADDER		64
+
+enum PetType
+{
+	PETTYPE_NONE = 0,
+	PETTYPE_SINGLE = 1,
+	PETTYPE_VALKYRIE = 2,
+	PETTYPE_IRONGOLEM = 3,
+	PETTYPE_SKELETON = 4,
+	PETTYPE_SKELETONMAGE = 5,
+	PETTYPE_REVIVE = 6,
+	PETTYPE_HIREABLE = 7,
+	PETTYPE_DOPPLEZON = 8,
+	PETTYPE_INVIS = 9,
+	PETTYPE_RAVEN = 10,
+	PETTYPE_SPIRITWOLF = 11,
+	PETTYPE_FENRIS = 12,
+	PETTYPE_TOTEM = 13,
+	PETTYPE_VINE = 14,
+	PETTYPE_GRIZZLY = 15,
+	PETTYPE_SHADOWWARRIOR = 16,
+	PETTYPE_ASSASSINTRAP = 17,
+	PETTYPE_PETTRAP = 18,
+	PETTYPE_HYDRA = 19,
+	PETTYPE_BLADESENT = 20,
+	PETTYPE_SKELETONARCHER = 21,
+	PETTYPE_DESECRATE = 22,
+	PETTYPE_DCLONESUMMON = 23,
+	PETTYPE_POISONCREEPER = 24,
+	PETTYPE_RATHMASUMMON = 25,
+	PETTYPE_DOPPLEZONNEW = 26,
+	PETTYPE_VINE2 = 27,
+	PETTYPE_GOLEM = 28,
+	PETTYPE_TOTALTYPES
+};
 
 //////////////////////////////////////////////////////////////////////////
 // Resistance Penalties
@@ -361,7 +395,7 @@ enum Font
 #define STAT_UNUSED190				190
 #define STAT_SKILLONEQUIP			191
 #define STAT_UNUSED192				192
-#define STAT_SKILLONEQUIP_DISPLAY	193
+#define STAT_SKILLONEQUIP_DISPLAY	287
 #define STAT_SOCKETS				194
 #define STAT_SKILLONSTRIKING		195
 #define STAT_SKILLONKILL			196
@@ -424,9 +458,9 @@ enum Font
 #define STAT_REPLENISHESQUANTITY	253
 #define STAT_INCREASEDSTACKSIZE		254
 #define STAT_FINDITEM				255
-#define STAT_SLASHDAMAGE			256
-#define STAT_SLASHDAMAGEPERCENT		257
-#define STAT_CRUSHDAMAGE			258
+#define STAT_CRITICALSTRIKE_MULTIPLIER 256
+#define STAT_DEADLYSTRIKE_MULTIPLIER 257
+#define STAT_ITEM_CRITICALSTRIKE_CHANCE			258
 #define STAT_CRUSHDAMAGEPERCENT		259
 #define STAT_THRUSTDAMAGE			260
 #define STAT_THRUSTDAMAGEPERCENT	261
@@ -436,7 +470,7 @@ enum Font
 #define STAT_SLASHDAMAGEABSORBPCT	265
 #define STAT_CRUSHDAMAGEABSORBPCT	266
 #define STAT_THRUSTDAMAGEABSORBPCT	267
-#define STAT_DEFENSEPERTIME			268
+#define STAT_CRUSHINGBLOW_EFFICIENCY	268
 #define STAT_ENHANCEDDEFENSEPERTIME	269
 #define STAT_LIFEPERTIME			270
 #define STAT_MANAPERTIME			271
@@ -665,8 +699,8 @@ enum Font
 #define STAT_DEEP_WOUNDS				501
 
 #define STAT_CURSE_EFFECTIVENESS		504
-#define STAT_AWAKENED					508
-#define STAT_AWAKENER					509
+#define STAT_AWAKENED					313
+#define STAT_AWAKENER					314
 
 ///////////////////////////////////////////////////
 // States
@@ -906,7 +940,8 @@ enum Type {
 	EXIT_MULTI
 };
 
-#define ITEMFLAG_ALLOCED 0x10000000;
+#define ITEMFLAG_ALLOCED 0x10000000
+#define ITEMFLAG_FAKE_COMPENDIUM_TAB 0x40000000
 
 ///////////////////////////////////////////////////
 // Spell Stats
@@ -1215,7 +1250,7 @@ enum QuestFlags {
 #define ITEM_NEW				0x00002000 // Set when an item first drops
 #define ITEM_ISEAR				0x00010000 // Player's ear
 #define ITEM_STARTITEM			0x00020000 // Start item(1 selling/repair value)
-#define ITEM_COMPACTSAVE		0x00200000 
+#define ITEM_COMPACTSAVE		0x00200000
 #define ITEM_ETHEREAL			0x00400000 // Ethreal
 #define ITEM_PERSONALIZED		0x01000000 // Personalized
 #define ITEM_RUNEWORD			0x04000000 // Runeword
@@ -1271,24 +1306,25 @@ enum QuestFlags {
 #define ITEM_GROUP_CLASS_ARMOR (ITEM_GROUP_BARBARIAN_HELM|ITEM_GROUP_DRUID_PELT|ITEM_GROUP_NECROMANCER_SHIELD|ITEM_GROUP_PALADIN_SHIELD)
 
 // Misc
-#define ITEM_GROUP_CHIPPED				0x00000001
-#define ITEM_GROUP_FLAWED				0x00000002
-#define ITEM_GROUP_REGULAR				0x00000004
-#define ITEM_GROUP_FLAWLESS				0x00000008
-#define ITEM_GROUP_PERFECT				0x00000010
-#define ITEM_GROUP_AMETHYST				0x00000020
-#define ITEM_GROUP_DIAMOND				0x00000040
-#define ITEM_GROUP_EMERALD				0x00000080
-#define ITEM_GROUP_RUBY					0x00000100
-#define ITEM_GROUP_SAPPHIRE				0x00000200
-#define ITEM_GROUP_TOPAZ				0x00000400
-#define ITEM_GROUP_SKULL				0x00000800
-#define ITEM_GROUP_RUNE					0x00001000
-#define ITEM_GROUP_JEWELRY				0x00002000
-#define ITEM_GROUP_CHARM				0x00004000
-#define ITEM_GROUP_QUIVER				0x00008000
-#define ITEM_GROUP_MAP					0x00010000
-#define ITEM_GROUP_CARD				0x00020000
+#define ITEM_GROUP_ALLMISC				0x00000001
+#define ITEM_GROUP_CHIPPED				0x00000002
+#define ITEM_GROUP_FLAWED				0x00000004
+#define ITEM_GROUP_REGULAR				0x00000008
+#define ITEM_GROUP_FLAWLESS				0x00000010
+#define ITEM_GROUP_PERFECT				0x00000020
+#define ITEM_GROUP_AMETHYST				0x00000040
+#define ITEM_GROUP_DIAMOND				0x00000080
+#define ITEM_GROUP_EMERALD				0x00000100
+#define ITEM_GROUP_RUBY					0x00000200
+#define ITEM_GROUP_SAPPHIRE				0x00000400
+#define ITEM_GROUP_TOPAZ				0x00000800
+#define ITEM_GROUP_SKULL				0x00001000
+#define ITEM_GROUP_RUNE					0x00002000
+#define ITEM_GROUP_JEWELRY				0x00004000
+#define ITEM_GROUP_CHARM				0x00008000
+#define ITEM_GROUP_QUIVER				0x00010000
+#define ITEM_GROUP_MAP					0x00020000
+#define ITEM_GROUP_CARD					0x00040000
 
 #define ITEM_GROUP_GEM (ITEM_GROUP_AMETHYST|ITEM_GROUP_DIAMOND|ITEM_GROUP_EMERALD|ITEM_GROUP_RUBY|ITEM_GROUP_SAPPHIRE|ITEM_GROUP_TOPAZ|ITEM_GROUP_SKULL)
 
@@ -1340,7 +1376,7 @@ enum UNITFLAGEX
 	UNITFLAGEX_CONVERTING = 0x00000040,       // Set while the cursor is in conversion mode (legacy).
 	UNITFLAGEX_VISIBLE = 0x00000080,       // Unit is within line of sight of the player.
 	UNITFLAGEX_DEACTIVATED = 0x00000100,       // Set for units that have been deactivated by SUNIT_Deactivate.
-	UNITFLAGEX_REACTIVATED = 0x00000200,       // Set for units that have been reactivated by SUNIT_Reactivate.    
+	UNITFLAGEX_REACTIVATED = 0x00000200,       // Set for units that have been reactivated by SUNIT_Reactivate.
 	UNITFLAGEX_OWNED = 0x00000400,       // This unit has an owner stored at pUnit->dwOwnerID and pUnit->eOwnerTOU (usually used by missile, but also set for pets).
 	UNITFLAGEX_POSITIONED = 0x00000800,       // SMESSAGE_SETUNITPOS, bFadeOutScreen = FALSE.
 	UNITFLAGEX_MOVING = 0x00002000,       // Set for critters while they're moving on the client.
@@ -1362,9 +1398,24 @@ enum InventoryTxtIndex {
 	INVENTORY_TXT_STASH_LOD = 12
 };
 
+enum TransactionTypes
+{
+	TRANSACTIONTYPE_BUY = 0,
+	TRANSACTIONTYPE_SELL = 1,
+	TRANSACTIONTYPE_GAMBLE = 2,
+	TRANSACTIONTYPE_REPAIR = 3,
+};
+
 #define MONSTAT_ALIGN_ENEMY				0x0
 #define MONSTAT_ALIGN_ALLY				0x1
 #define MONSTAT_ALIGN_NEUTRAL			0x2
+
+#define SKILL_JAVELINANDSPEARMASTERY	19
+#define SKILL_SMITE					97
+#define SKILL_ONEHANDMASTERY		128
+#define SKILL_TWOHANDMASTERY		134
+#define SKILL_THROWINGMASTERY		135
+#define SKILL_CLAWANDDAGGERMASTERY	252
 
 // Toggles for GOODSK and GOODCLSK in ItemDisplay
 #define CLASS_SKILLS					0
@@ -1438,6 +1489,15 @@ enum InventoryTxtIndex {
 #define ITEM_TYPE_T3_MAP			108
 #define ITEM_TYPE_T4_MAP			109
 
+#define ITEM_TYPE_WEAPON	        45
+#define ITEM_TYPE_MELEE_WEAPON		46
+#define ITEM_TYPE_MISSILE_WEAPON	47
+#define ITEM_TYPE_THROWN_WEAPON		48
+#define	ITEM_TYPE_HAND_TO_HAND		67
+#define	ITEM_TYPE_TWOHANDED_MELEE_WEAPON	114
+#define	ITEM_TYPE_GENERAL_WEAPON	115
+#define	ITEM_TYPE_ONEHANDED_MELEE_WEAPON	116
+
 #define ITEM_TYPE_STACK_FLAWLESS	128
 #define ITEM_TYPE_STACK_PERFECT		129
 #define ITEM_TYPE_STACK_AMETHYST	130
@@ -1461,7 +1521,9 @@ enum InventoryTxtIndex {
 #define ITEM_TYPE_PVP_MAP_MOOR		199
 #define ITEM_TYPE_T5_MAP			211
 #define ITEM_TYPE_PVP_MAP_DESERT	227
-#define ITEM_TYPE_CARD				232
+#define ITEM_TYPE_CARD				246
+
+
 
 enum MinAccrIndex
 {
@@ -1510,7 +1572,7 @@ const std::vector<std::set<int>> ValidCorruptZones =
 	{106, 107}, // City of the Damned + River of Flame
 	{108}, // Chaos Sanctuary
 	{110, 111}, // Bloody Foothills + Frigid Highlands
-	{112, 113, 114}, // Arreat Plateau + Crystalline Passage + Frozen River 
+	{112, 113, 114}, // Arreat Plateau + Crystalline Passage + Frozen River
 	{115, 116, 117}, // Glacial Trail + Drifter Cavern + Frozen Tundra
 	{118, 119}, // Ancient's Way + Icy Cellar
 	{121, 122, 123, 124}, // Nihlathak's Temple
@@ -1611,6 +1673,7 @@ const int CorruptionMods[][6] = {
 	{STAT_ADDEXPERIENCE, -1, -1, -1, -1, -1},
 	{STAT_VITALITY, STAT_ENERGY, -1, -1, -1, -1},
 	{STAT_MONSTERDEFDUCTPERHIT, -1, -1, -1, -1, -1},
+	{STAT_HALFFREEZEDURATION, -1, -1, -1, -1, -1},
 };
 
 const int NUM_AWAKENS = 90;

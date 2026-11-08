@@ -125,6 +125,7 @@ struct SoundsTxt
 	struct AsyncData* pAsyncData;
 	enum ESOUNDDATASTATE eDataState;
 	DWORD dwRefCount;
+	DWORD nSoundGroup;
 };
 
 struct PropertiesTxt
@@ -617,6 +618,12 @@ struct ItemStatCostTxt  //size 0x144
 	WORD	wOpStat2;			//0x5A
 	WORD	wOpStat3;			//0x5C
 	BYTE 	_Stuff[230];		//0x5E
+	DWORD	nSaveBitsS12;		//0x144
+	DWORD	nSaveAddS12;		//0x148
+	DWORD	nSaveParamBitsS12;	//0x14C
+	DWORD	nSaveBitsS13;		//0x150
+	DWORD	nSaveAddS13;		//0x154
+	DWORD	nSaveParamBitsS13;	//0x158
 };
 
 struct MissilesTxt

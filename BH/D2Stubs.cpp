@@ -178,6 +178,46 @@ __declspec(naked) void __stdcall D2CLIENT_GetItemFromPacketIntercept_NewGround_S
   }
 }
 
+__declspec(naked) void __stdcall D2CLIENT_ItemPacketBuildAction2_DropToGround_STUB(px9c* packet)
+{
+	__asm
+	{
+		mov EAX, [esp + 4]                                   // packet
+		call D2CLIENT_ItemPacketBuildAction2_DropToGround   // 0x84990
+		retn 4
+	}
+}
+
+__declspec(naked) void __stdcall D2CLIENT_ItemPacketBuildAction2_DropToGround_INTERCEPT_STUB()
+{
+	__asm
+	{
+		push EAX                                             // packet
+		call GetItemFromPacket_DropToGround // 0x84990
+		retn 0
+	}
+}
+
+__declspec(naked) void __stdcall D2CLIENT_ItemPacketBuildAction4_PutInContainer_STUB(px9c* packet)
+{
+	__asm
+	{
+		mov EAX, [esp + 4]                                   // packet
+		call D2CLIENT_ItemPacketBuildAction4_PutInContainer // 0x84750
+		retn 4
+	}
+}
+
+__declspec(naked) void __stdcall D2CLIENT_ItemPacketBuildAction4_PutInContainer_INTERCEPT_STUB()
+{
+	__asm
+	{
+		push EAX                                             // packet
+		call GetItemFromPacket_PutInContainer // 0x84750
+		retn 0
+	}
+}
+
 __declspec(naked) void __stdcall D2CLIENT_GetItemDescription_STUB(ItemsTxt* pItemTxtRec, wchar_t* pBuffer, UnitAny* pItem)
 {
 	__asm
@@ -189,5 +229,68 @@ __declspec(naked) void __stdcall D2CLIENT_GetItemDescription_STUB(ItemsTxt* pIte
 		call D2CLIENT_GetItemDescription                     // 0x8D600
 		pop ESI
 		retn 12
+	}
+}
+
+__declspec(naked) SoundInstance* __stdcall D2CLIENT_GetExistingSoundInstanceInQueue_STUB(int nSound, SoundInstance* pSoundInstanceToSkip)
+{
+	__asm
+	{
+		mov EAX, [esp + 4]                                   // param_1
+		push[esp + 8]                                       // pSoundInstanceToSkip
+		call D2CLIENT_GetExistingSoundInstanceInQueue        // 0x87FE0
+		retn 8
+	}
+}
+
+__declspec(naked) void __stdcall D2CLIENT_AdjustSoundBasedOnCoords_STUB(float* fPos, UnitAny* pUnit, int nSound)
+{
+	__asm
+	{
+		push EDI
+		mov EDI, [esp + 8]                                   // fPos
+		push[esp + 16]                                      // nSound
+		push[esp + 16]                                      // pUnit
+		call D2CLIENT_AdjustSoundBasedOnCoords               // 0x87F30
+		pop EDI
+		retn 12
+	}
+}
+
+__declspec(naked) float __stdcall D2CLIENT_SoundTestCollision_STUB(int nSound, UnitAny* pTarget)
+{
+	__asm
+	{
+		mov EAX, [esp + 4]                                   // nSound
+		push[esp + 8]                                       // pTarget
+		call D2CLIENT_SoundTestCollision                     // 0x88440
+		// Float return is stored in ST(0) register
+		retn 8
+	}
+}
+
+__declspec(naked) void __stdcall D2CLIENT_LinkSoundInstanceToClientUnit_STUB(UnitAny* pUnit, int nSoundInstanceId)
+{
+	__asm
+	{
+		mov EAX, [esp + 4]                                   // pUnit
+		push[esp + 8]                                       // nSoundInstanceId
+		call D2CLIENT_LinkSoundInstanceToClientUnit          // 0x22390
+		retn 8
+	}
+}
+
+__declspec(naked) int __stdcall D2COMMON_GetStatsWithIdFromStatlist_STUB(StatList* pStatlist, int* pBuffer, unsigned int nStatId, int nLayer)
+{
+	__asm
+	{
+		push ECX
+		mov EAX, [esp + 8]                                   // pStatlist
+		mov ECX, [esp + 12]                                  // pBuffer
+		push[esp + 20]                                      // nLayer
+		push[esp + 20]                                      // nStatId
+		call D2COMMON_GetStatsWithIdFromStatlist             // 0x382F0
+		pop ECX
+		retn 16
 	}
 }

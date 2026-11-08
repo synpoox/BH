@@ -193,6 +193,23 @@ struct Waypoint {
 	BYTE flags;						//0x00
 };
 
+struct ClientPetData
+{
+	DWORD nPetType;			// 0x00
+	int nPetTypeId;			// 0x04
+	int nPetUnitId;			// 0x08
+	int nOwnerId;			// 0x0C
+	DWORD nPetLevelId;		// 0x10		Levels.txt
+	DWORD _0x14;			// 0x14
+	DWORD _0x18;			// 0x18
+	DWORD nPetLifePercent;	// 0x1C
+	int nOwnerType;			// 0x20
+	DWORD nSeed;			// 0x24
+	DWORD nNameId;			// 0x28
+	DWORD _0x2C;			// 0x2C
+	ClientPetData* pNext;	// 0x30
+};
+
 struct PlayerData {
 	char szName[0x10];				//0x00
 	QuestInfo* pNormalQuest;		//0x10
@@ -877,6 +894,148 @@ struct OverheadMsg {
 	DWORD dwTrigger;
 	DWORD _2[2];
 	char Msg[232];
+};
+
+struct DSBCAPS
+{
+	DWORD dwSize;
+	DWORD dwFlags;
+	DWORD dwBufferBytes;
+	DWORD dwUnlockTransferRate;
+	DWORD dwPlayCpuOverhead;
+};
+
+struct DirectSoundBufferInterface
+{ /* https://ccrma.stanford.edu/software/stk/Misc/dsound.h */
+	HRESULT(*QueryInterface)(int*, int*, int*);
+	int* AddRef;
+	int* Release;
+	HRESULT(*GetCaps)(int, struct DSBCAPS);
+	int* GetCurrentPosition;
+	int* GetFormat;
+	int* GetVolume;
+	int* GetPan;
+	int* GetFrequency;
+	int* GetStatus;
+	int* Initialize;
+	int* Lock;
+	int* Play;
+	int* SetCurrentPosition;
+	int* SetFormat;
+	int* SetVolume;
+	int* SetPan;
+	int* SetFrequency;
+	int* Stop;
+	int* Unlock;
+	int* Restore;
+};
+
+struct DirectSound3DBufferInterface
+{
+	HRESULT(*QueryInterface)(int*, int*, int*);
+	int* AddRef;
+	int* Release;
+	int* GetAllParameters;
+	int* GetConeAngles;
+	int* GetConeOrientation;
+	int* GetConeOutsideVolume;
+	int* GetMaxDistance;
+	int* GetMinDistance;
+	int* GetMode;
+	int* GetPosition;
+	int* GetVelocity;
+	int* SetAllParameters;
+	int* SetConeAngles;
+	int* SetConeOrientation;
+	int* SetConeOutsideVolume;
+	int* SetMaxDistance;
+	int* SetMinDistance;
+	int* SetMode;
+	int* SetPosition;
+	int* SetVelocity;
+};
+
+struct IKsPropertySetInterface
+{
+	HRESULT(*QueryInterface)(int*, int*, int*);
+	int* AddRef;
+	int* Release;
+	HRESULT(*Get)(int*, int, int, int, int, int, int, int);
+	HRESULT(*Set)(int*, int, int, int, int, int, int);
+	HRESULT(*QuerySupport)(int*, int, int, int);
+};
+
+struct SoundSample
+{
+	struct DirectSoundBufferInterface** ppDirectSoundBufferInterface;
+	DWORD dwFlags;
+	DWORD field2_0x8;
+	struct DirectSound3DBufferInterface** ppDirectSound3DBufferInterface;
+	struct IKsPropertySetInterface** ppIKsPropertySetInterface;
+	void* pRawData;
+	DWORD nWaveSize;
+	DWORD isPlaying;
+	DWORD field8_0x20;
+	DWORD field9_0x24;
+	DWORD field10_0x28;
+	DWORD field11_0x2c;
+	DWORD ukn_FFFFFFFF;
+	DWORD* field13_0x34;
+	DWORD nVolume;
+	float fCollisionAdjust;
+	DWORD loop;
+	DWORD nLoopBlockStart; // block1
+	DWORD* pStreamFile;
+	DWORD isMuted;
+	DWORD nPrevVolume;
+	DWORD nSomeOtherVolume;
+	DWORD tickCount;
+	DWORD tickCountEx;
+};
+
+struct SoundInstance
+{
+	DWORD isActive;
+	DWORD nSound;
+	DWORD nSoundInstanceId;
+	float fSoundPosX;
+	float fSoundPosY;
+	float fSoundPosZ;
+	float field6_0x18;
+	DWORD nVolumeAdjust;
+	float fCollisionAdjust;
+	DWORD nPrevSampleOffset;
+	struct SoundInstanceLink* pInstanceLink;
+	struct SoundChannel* pSoundChannel;
+	DWORD field12_0x30;
+	DWORD nStartFrame;
+	BOOL bSoundIsMusic;
+	BYTE priority;
+	DWORD field16_0x3d;
+	DWORD nSampleOffset; // related to Block 1/2/3 in sounds.txt
+	DWORD field18_0x45;
+	DWORD field19_0x49;
+	DWORD field20_0x4d;
+	DWORD nSoundFrame;
+	DWORD nSoundFramePlusFadeout;
+};
+
+struct SoundInstanceLink
+{
+	SoundInstance* pSoundInstance;
+	SoundInstanceLink* pNextInstance;
+};
+
+struct SoundChannel
+{
+	SoundSample* pSoundSample;
+	DWORD flags;
+	SoundInstance* pSoundInstance;
+	float fSoundPosX;
+	float fSoundPosY;
+	float fSoundPosZ;
+	DWORD nMasterVolume;
+	float fCollisionAdjust;
 };
 
 #pragma pack(pop)

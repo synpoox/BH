@@ -141,8 +141,8 @@ unsigned int Inputhook::GetCharacterLimit() {
 
 	 
 	 if (IsSelected()) {
-		 drawnText.insert(GetSelectionPosition() + GetSelectionLength(), "ÿc0");
-		 drawnText.insert(GetSelectionPosition(), "ÿc9");
+		 drawnText.insert(GetSelectionPosition() + GetSelectionLength(), "Ã¿c0");
+		 drawnText.insert(GetSelectionPosition(), "Ã¿c9");
 	 }
 
 	
@@ -230,25 +230,34 @@ unsigned int Inputhook::GetCharacterLimit() {
 				OpenClipboard(NULL);
 				//Paste
 				if (key == 0x56) {
-					HANDLE pHandle = GetClipboardData(CF_TEXT);
+					HANDLE pHandle = GetClipboardData(CF_UNICODETEXT);
 					if (!pHandle)
 						return true;
-					InputText((char*)GlobalLock(pHandle));
+					wchar_t* wText = (wchar_t*)GlobalLock(pHandle);
+					if (wText) {
+						char* utf8Text = UnicodeToAnsi(wText);
+						InputText(utf8Text);
+						delete[] utf8Text;
+					}
+					GlobalUnlock(pHandle);
 				}
 				//Copy & Cut
 				if (key == 0x43 || key == 0x58) {
 					if (!IsSelected() || text.length() == 0)
 						return true;
-					
+
 					Lock();
 					string mText = text.substr(GetSelectionPosition(), GetSelectionLength());
-			
-					HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, (mText.size() + 1) * sizeof(CHAR)); 
-					char* szStr = (char*)GlobalLock(hGlobal);
-					memcpy(szStr, mText.c_str(), mText.size() * sizeof(CHAR));
+					wchar_t* wText = AnsiToUnicode(mText.c_str());
+					size_t wLen = wcslen(wText) + 1;
+
+					HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, wLen * sizeof(wchar_t));
+					wchar_t* szStr = (wchar_t*)GlobalLock(hGlobal);
+					memcpy(szStr, wText, wLen * sizeof(wchar_t));
 					GlobalUnlock(hGlobal);
+					delete[] wText;
 					EmptyClipboard();
-					SetClipboardData(CF_TEXT, hGlobal);
+					SetClipboardData(CF_UNICODETEXT, hGlobal);
 
 					if (key == 0x58) {
 						Erase(GetSelectionPosition(), GetSelectionLength());

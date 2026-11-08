@@ -62,6 +62,11 @@ void MapNotify::OnDraw() {
 	for (Room1* room1 = player->pAct->pRoom1; room1; room1 = room1->pRoomNext) {
 		for (UnitAny* unit = room1->pUnitFirst; unit; unit = unit->pListNext) {
 			if (unit->dwType == UNIT_ITEM && (unit->dwFlags & UNITFLAG_NO_EXPERIENCE) == 0x0) {
+				if (unit->dwFlags2 & UNITFLAGEX_INVISIBLE) {
+					// filter-hidden items get no notification or automap dot
+					unit->dwFlags |= UNITFLAG_NO_EXPERIENCE;
+					continue;
+				}
 				DWORD dwFlags = unit->pItemData->dwFlags;
 				char* code = D2COMMON_GetItemText(unit->dwTxtFileNo)->szCode;
 				UnitItemInfo uInfo;
@@ -85,14 +90,12 @@ void MapNotify::OnDraw() {
 							{
 								SoundsTxt* pSoundsTxt = *p_D2CLIENT_SoundsTxt;
 								int soundID = (*it)->action.soundID;
-								if (soundID > 0 && soundID < *p_D2CLIENT_SoundRecords &&
-									(soundID < 4657 || soundID > 4698) &&	// Don't allow music
-									App.lootfilter.dropSounds.value && pSoundsTxt)
+								if (App.pd2.pd2PlaySoundImpl && App.lootfilter.dropSounds.value && pSoundsTxt && soundID > 0 && soundID < *p_D2CLIENT_SoundRecords)
 								{
 									pSoundsTxt = pSoundsTxt + soundID;
-									if (pSoundsTxt && pSoundsTxt->loop == 0)
+									if (pSoundsTxt && pSoundsTxt->loop == 0 && pSoundsTxt->nSoundGroup != 2)
 									{
-										D2CLIENT_PlaySound_STUB(soundID, NULL, 0, 0, 0);
+										App.pd2.pd2PlaySoundImpl(NULL, soundID, pSoundsTxt->volume, 255, TRUE);
 									}
 								}
 

@@ -10,7 +10,7 @@ static std::string UpperString(const char* begin, const char* end)
 	std::string s;
 	s.reserve(end - begin);
 	for (const char* p = begin; p < end; p++)
-		s.push_back(::toupper(*p));
+		s.push_back((*p >= 'a' && *p <= 'z') ? (*p - 32) : *p);
 	return s;
 }
 

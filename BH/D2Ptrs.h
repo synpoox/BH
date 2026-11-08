@@ -109,7 +109,6 @@ FUNCPTR(D2CLIENT, GetCurrentInteractingNPC, UnitAny* __fastcall, (void), 0x46150
 FUNCPTR(D2CLIENT, GetSelectedUnit, UnitAny* __stdcall, (void), 0x51A80, 0x17280)
 FUNCPTR(D2CLIENT, GetCursorItem, UnitAny* __fastcall, (void), 0x16020, 0x144A0)
 FUNCPTR(D2CLIENT, GetMercUnit, UnitAny* __fastcall, (void), 0x97CD0, 0x9C0A0)
-FUNCPTR(D2CLIENT, ItemPacketBuildAction3_OldGround, void __stdcall, (px9c* pPacket), 0x86810)
 // FUNCPTR(D2CLIENT, UnitTestSelect, DWORD __stdcall, (UnitAny* pUnit, DWORD _1, DWORD _2, DWORD _3), 0x8D030) // unused but we need to use it
 
 FUNCPTR(D2CLIENT, SetSelectedUnit_I, void __fastcall, (UnitAny* pUnit), 0x51860, 0x17060)
@@ -234,6 +233,7 @@ VARPTR(D2CLIENT, GameInfo, GameStructInfo*, 0x11B980, 0x109738)
 VARPTR(D2CLIENT, WaypointTable, DWORD, 0xFCDD1, 0x1088FD)
 
 VARPTR(D2CLIENT, PlayerUnit, UnitAny*, 0x11BBFC, 0x11D050)
+VARPTR(D2CLIENT, ClientPetData, ClientPetData*, 0x11C4D4);
 VARPTR(D2CLIENT, SelectedInvItem, UnitAny*, 0x11BC38, 0x11CB28)
 //VARPTR(D2CLIENT, SelectedUnit, UnitAny*, 0x11C4D8) // unused, but can we use it somewhere maybe? // 1.12 still
 VARPTR(D2CLIENT, PlayerUnitList, RosterUnit*, 0x11BC14, 0x11CB04)
@@ -257,6 +257,8 @@ VARPTR(D2CLIENT, WeaponSpeedTable, int*, 0xE0F78)
 VARPTR(D2CLIENT, WeaponSpeedModTable, int*, 0xE10E0)
 
 VARPTR(D2CLIENT, MapId, DWORD, 0x11C310)
+VARPTR(D2CLIENT, ArenaFlags, DWORD, 0xE264C)
+VARPTR(D2CLIENT, Music_CurrentLevelId, DWORD, 0x11C34C)
 VARPTR(D2CLIENT, ScreenCovered, DWORD, 0x11C414) // 1 = Right Side Covered 2 = Left Side Covered 3 = Both Sides Covered
 
 
@@ -293,6 +295,16 @@ ASMPTR(D2CLIENT, PlayItemDropSounds, 0x827C0)
 VARPTR(D2CLIENT, SoundsTxt, SoundsTxt*, 0x11C24C)
 VARPTR(D2CLIENT, SoundRecords, DWORD, 0x11C250)
 
+VARPTR(D2CLIENT, DAT_SoundFrame, DWORD, 0x11C268);
+VARPTR(D2CLIENT, DAT_SoundEnabled, DWORD, 0x11BF34);
+ASMPTR(D2CLIENT, GetExistingSoundInstanceInQueue, 0x87FE0);
+FUNCPTR(D2CLIENT, CreateSoundInstance, SoundInstance* __stdcall, (), 0x87D80);
+ASMPTR(D2CLIENT, AdjustSoundBasedOnCoords, 0x87F30);
+FUNCPTR(D2CLIENT, SetSoundInstanceCoords, void __fastcall, (float* fPos, SoundInstance* pSoundInstance), 0x88350);
+ASMPTR(D2CLIENT, SoundTestCollision, 0x88440);
+FUNCPTR(D2SOUND, 10034_LinkSoundInstance, void __fastcall, (SoundInstanceLink** ppSoundInstanceLInk, UnitAny* pUnit), 0x8710);
+ASMPTR(D2CLIENT, LinkSoundInstanceToClientUnit, 0x22390);
+
 ASMPTR(D2CLIENT, InputCall_I, 0x147A0, 0xB6890)
 
 ASMPTR(D2CLIENT, Say_I, 0x70EC6, 0xB27A6)
@@ -323,7 +335,10 @@ ASMPTR(D2WIN, DrawTextBuffer, 0x12940, 0x134D0)
 
 ASMPTR(D2CLIENT, ParseStats_J, 0x54E10, 0x2CE40)
 ASMPTR(D2CLIENT, GetItemPropertiesString, 0x55B20);
+FUNCPTR(D2CLIENT, ItemPacketBuildAction3_OldGround, void __stdcall, (px9c* pPacket), 0x86810)
 ASMPTR(D2CLIENT, ItemPacketBuildAction0_NewGround, 0x84BB0);
+ASMPTR(D2CLIENT, ItemPacketBuildAction2_DropToGround, 0x84990);
+ASMPTR(D2CLIENT, ItemPacketBuildAction4_PutInContainer, 0x84750);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -338,6 +353,7 @@ FUNCPTR(D2COMMON, LoadAct, Act* __stdcall, (DWORD ActNumber, DWORD MapId, DWORD 
 FUNCPTR(D2COMMON, GetLevelText, LevelText* __stdcall, (DWORD levelno), -10014, -10142)
 FUNCPTR(D2COMMON, GetObjectText, ObjectTxt* __stdcall, (DWORD objno), -10688, -10319)
 FUNCPTR(D2COMMON, GetItemText, ItemsTxt* __stdcall, (DWORD dwItemNo), -10695, -10994)
+FUNCPTR(D2COMMON, GetItemTextFromItemCode, ItemsTxt* __stdcall, (DWORD dwItemNo, int* pItemId), -10450)
 
 FUNCPTR(D2COMMON, GetLayer, AutomapLayer2* __fastcall, (DWORD dwLevelNo), -10749, -10087)
 FUNCPTR(D2COMMON, GetLevel, Level* __fastcall, (ActMisc* pMisc, DWORD dwLevelNo), -10207, -10287)
@@ -355,6 +371,13 @@ FUNCPTR(D2COMMON, 10535_DATATBLS_GetItemDataTables, D2ItemDataTbl* __stdcall, ()
 FUNCPTR(D2COMMON, 10492_DATATBLS_GetMagicAffixDataTables, D2MagicAffixDataTbl* __stdcall, (), -10492);
 FUNCPTR(D2COMMON, 10365_DATATBLS_GetRareAffixTxtRecord, RareAffixTxt* __stdcall, (int nId), -10365);
 
+FUNCPTR(D2COMMON, 10061_INVENTORY_GetLeftHandWeapon, UnitAny* __stdcall, (Inventory* pInventory), -10061);
+FUNCPTR(D2COMMON, 11139_INVENTORY_GetItemFromBodyLoc, UnitAny* __stdcall, (Inventory* pInventory, int nBodyLoc), -11139);
+ASMPTR(D2COMMON, GetStatsWithIdFromStatlist, 0x382F0);
+FUNCPTR(D2COMMON, 10744_ITEMS_IsMatchingType, BOOL __stdcall, (UnitAny* pItem, int iType), -10744, -10601)
+FUNCPTR(D2COMMON, 11034_ITEMS_CheckItemTypes, BOOL __stdcall, (int nItemType1, int nItemType2), -11034);
+FUNCPTR(D2COMMON, GetStartSkill, Skill* __stdcall, (UnitAny* pUnit), -10947);
+
 FUNCPTR(D2COMMON, CheckUnitCollision, DWORD __stdcall, (UnitAny* pUnitA, UnitAny* pUnitB, DWORD dwBitMask), -10839, -10221)
 FUNCPTR(D2COMMON, GetRoomFromUnit, Room1* __stdcall, (UnitAny* ptUnit), -10331, -10846)
 FUNCPTR(D2COMMON, GetLevelIdFromRoom, int __stdcall, (Room1* pRoom), -10826)
@@ -363,13 +386,14 @@ FUNCPTR(D2COMMON, GetTargetUnitType, Path* __stdcall, (Path* pPath), -10392, -10
 FUNCPTR(D2COMMON, GetSkillLevel, int __stdcall, (UnitAny* pUnit, Skill* pSkill, BOOL bTotal), -10306, -10007)
 
 FUNCPTR(D2COMMON, GetItemLevelRequirement, DWORD __stdcall, (UnitAny* pItem, UnitAny* pPlayer), -11015, -10929)
-FUNCPTR(D2COMMON, GetItemPrice, DWORD __stdcall, (UnitAny* MyUnit, UnitAny* pItem, DWORD U1_, DWORD U2_, DWORD U3_, DWORD U4_), -10107, -10186)
+FUNCPTR(D2COMMON, GetItemPrice, DWORD __stdcall, (UnitAny* pPlayer, UnitAny* pItem, DWORD nDifficulty, DWORD pQuestInfo, DWORD nVendorId, DWORD nTransactionType), -10107, -10186)
 FUNCPTR(D2COMMON, GetRepairCost, DWORD __stdcall, (DWORD _1, UnitAny* pUnit, DWORD dwNpcId, DWORD dwDifficulty, DWORD dwItemPriceList, DWORD _2), -10071, -10807)
 FUNCPTR(D2COMMON, GetItemMagicalMods, AutoMagicTxt* __stdcall, (int wPrefixNum), -10248, -10174)
 FUNCPTR(D2COMMON, GetItemFromInventory, UnitAny* __stdcall, (Inventory* inv), -10460, -11132)
 FUNCPTR(D2COMMON, GetNextItemFromInventory, UnitAny* __stdcall, (UnitAny* pItem), -10464, -10879)
 FUNCPTR(D2COMMON, GetItemType, int __stdcall, (UnitAny* pItem), -11088, -10121)
 FUNCPTR(D2COMMON, IsMatchingType, BOOL __stdcall, (UnitAny* pItem, int iType), -10744, -10601)
+FUNCPTR(D2COMMON, GetMaxSockets, BYTE __stdcall, (UnitAny* pItem), -11151)
 
 FUNCPTR(D2COMMON, GetRunesTxt, RunesTxt* __stdcall, (int RecordNo), -10006, -10405)
 FUNCPTR(D2COMMON, GetRunesTxtRecords, int* __stdcall, (void), -11032, -10981)

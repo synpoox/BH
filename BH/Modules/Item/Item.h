@@ -79,7 +79,7 @@ public:
 	void OnLeftClick(bool up, int x, int y, bool* block);
 
 	static void __fastcall ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize);
-	static void OrigGetItemName(UnitAny* item, string& itemName, char* code);
+	static void OrigGetItemName(UnitAny* item, wstring& itemName, char* code);
 	static void __stdcall OnProperties(wchar_t* wTxt);
 	static BOOL __stdcall OnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStats, int nStat, wchar_t* wOut);
 	static void __stdcall OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam);
@@ -96,6 +96,16 @@ public:
 	static unsigned int GetFilterLevel() { return App.lootfilter.filterLevel.uValue; }
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(dllexport) void __stdcall BHOnProperties(wchar_t* wTxt);
+__declspec(dllexport) BOOL __stdcall BHOnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStats, int nStat, wchar_t* wOut);
+__declspec(dllexport) void __stdcall BHOnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam);
+#ifdef __cplusplus
+}
+#endif
+
 void ItemName_Interception();
 void __fastcall GetProperties_Interception();
 void GetItemPropertyStringDamage_Interception();
@@ -108,9 +118,16 @@ void PermShowItemsPatch2_ASM();
 void PermShowItemsPatch3_ASM();
 void PermShowItemsPatch4_ASM();
 
+// Loot filter overrides
+bool IsHealingPotion(UnitAny* pItem);
+bool IsManaPotion(UnitAny* pItem);
+bool LootFilterOverridesForceShow(UnitAny* pItem);
+
 int CreateUnitItemInfo(UnitItemInfo* uInfo, UnitAny* item);
 void __stdcall GetItemFromPacket_NewGround(px9c* packet);
+void __stdcall GetItemFromPacket_DropToGround(px9c* packet);
 void __stdcall GetItemFromPacket_OldGround(px9c* packet);
+void __stdcall GetItemFromPacket_PutInContainer(px9c* pPacket);
 int ItemGetCorruptor(UnitAny* pItem, int nStat);
 BOOL StatIsCorrupted(int nStat, int nCorruptor);
 int ItemGetAwakener(UnitAny* pItem);
@@ -132,10 +149,10 @@ bool IsInitialized();
 
 // Item attributes from ItemTypes.txt and Weapon/Armor/Misc.txt
 struct ItemAttributes {
-	std::string name;			// Only used in Item Drop/Item Close Notifications. Can delete
+	std::wstring name;
 	WORD category;
-	BYTE width;					// Delete. Inventory related, which is unnecessary
-	BYTE height;				// Delete. Inventory related, which is unnecessary
+	BYTE width;
+	BYTE height;
 	BYTE stackable;
 	BYTE useable;
 	BYTE throwable;
@@ -150,7 +167,7 @@ struct ItemAttributes {
 
 // Properties from ItemStatCost.txt
 struct StatProperties {
-	std::string name;
+	std::wstring name;
 	//std::string localizedName;
 	ItemStatCostTxt* pItemStatCostTxt;
 	unsigned short statId;

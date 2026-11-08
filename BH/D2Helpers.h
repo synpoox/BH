@@ -9,6 +9,7 @@
 
 bool IsValidMonster(UnitAny* pUnit);
 int GetRelation(UnitAny* unit);
+UnitAny* __stdcall GetClientMercUnit();
 RosterUnit* FindPlayerRoster(DWORD unitId);
 void Print(char* format, ...);
 void PartyPrint(char* format, ...);
@@ -35,3 +36,6 @@ DWORD GetPlayerArea();
 int32_t __fastcall UTILITY_CalcPercent(int32_t nValue, double nPercent, uint32_t nBase);
 wchar_t* GetTblEntryByIndex(int nIndex, int nSource);
 int ItemColorFromQuality(unsigned int quality);
+SkillsTxt* __fastcall GetSkillRecord(int nSkill);
+int __stdcall GetMasteryStat(UnitAny* pUnit, int nStatId, int nSkill);
+Skill* __stdcall GetSkillFromUnitBySkillId(UnitAny* pUnit, int nSkillId);

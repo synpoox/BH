@@ -3,6 +3,7 @@
 #include "../../D2Ptrs.h"
 #include "../../Config.h"
 #include "../../BH.h"
+#include "../../Formula.h"
 #include <cstdlib>
 #include <regex>
 #include "../../RuleLookupCache.h"
@@ -18,7 +19,6 @@
 #define DEAD_COLOR        0xdead
 #define UNDEFINED_COLOR   0xbeef
 
-
 // Collection of item data from the internal UnitAny structure
 struct UnitItemInfo
 {
@@ -27,6 +27,7 @@ struct UnitItemInfo
 	ItemAttributes* attrs;
 };
 
+typedef UnitItemInfo FormulaContext;
 extern std::map<std::string, int> UnknownItemCodes;
 
 enum ConditionType
@@ -55,9 +56,9 @@ public:
 	{
 	}
 
-	static const string tokenDelims;
+	static const wstring tokenDelims;
 	static void         BuildConditions(vector<Condition*>& conditions,
-		string              token);
+		wstring              token);
 	static void ProcessConditions(vector<Condition*>& rawConditions,
 		vector<Condition*>& processedConditions);
 	static void AddOperand(vector<Condition*>& conditions,
@@ -185,6 +186,25 @@ public:
 	QualityCondition(unsigned int qual) : quality(qual) { conditionType = CT_Operand; };
 private:
 	unsigned int quality;
+	bool         EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+enum DiscoveryStateFlag
+{
+	DISCOVERYSTATE_ANYDISCOVERED = 0x1,	// any candidate variant group discovered
+	DISCOVERYSTATE_ALLDISCOVERED = 0x2,	// every candidate variant group discovered
+	DISCOVERYSTATE_ANYOWNED = 0x4,		// any candidate variant group owned
+	DISCOVERYSTATE_ALLOWNED = 0x8,		// every candidate variant group owned
+};
+
+class DiscoveryStateCondition : public Condition
+{
+public:
+	DiscoveryStateCondition(unsigned int flag) : discoveryFlag(flag) { conditionType = CT_Operand; };
+private:
+	unsigned int discoveryFlag;
 	bool         EvaluateInternal(UnitItemInfo* uInfo,
 		Condition* arg1,
 		Condition* arg2);
@@ -390,6 +410,25 @@ private:
 		Condition* arg2);
 };
 
+class RerollLevelCondition : public Condition
+{
+public:
+	RerollLevelCondition(BYTE operation,
+		BYTE rerollLevel1,
+		BYTE rerollLevel2) : operation_(operation),
+		rerollLevel1_(rerollLevel1),
+		rerollLevel2_(rerollLevel2) {
+		conditionType = CT_Operand;
+	};
+private:
+	BYTE operation_;
+	BYTE rerollLevel1_;
+	BYTE rerollLevel2_;
+	bool EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
 class AutomodCondition : public Condition
 {
 public:
@@ -564,11 +603,12 @@ private:
 		Condition* arg2);
 };
 
-class EquippedCondition : public Condition
+class LocationCondition : public Condition
 {
 public:
-	EquippedCondition() { conditionType = CT_Operand; };
+	LocationCondition(unsigned int nLocation) : location(nLocation) { conditionType = CT_Operand; };
 private:
+	unsigned int location;
 	bool EvaluateInternal(UnitItemInfo* uInfo,
 		Condition* arg1,
 		Condition* arg2);
@@ -733,19 +773,49 @@ class ItemPriceCondition : public Condition
 public:
 	ItemPriceCondition(BYTE op,
 		unsigned int target,
-		unsigned int target2)
+		unsigned int target2,
+		unsigned int transactionType)
 		: operation(op),
 		targetStat(target),
-		targetStat2(target2) {
+		targetStat2(target2),
+		nTransactionType(transactionType){
 		conditionType = CT_Operand;
 	};
 private:
 	BYTE         operation;
 	unsigned int targetStat;
 	unsigned int targetStat2;
+	unsigned int nTransactionType;
 	bool         EvaluateInternal(UnitItemInfo* uInfo,
 		Condition* arg1,
 		Condition* arg2);
+};
+
+class ItemSizeCondition: public Condition
+{
+public:
+	enum Dimension {
+		kWidth = 0,
+		kHeight,
+		kArea,
+	};
+
+	ItemSizeCondition(BYTE op,
+		unsigned int targetStat,
+		unsigned int targetStat2,
+		Dimension dimension)
+		: op_(op),
+		targetStat_(targetStat),
+		targetStat2_(targetStat2),
+		dimension_(dimension){
+		conditionType = CT_Operand;
+	};
+private:
+	BYTE op_;
+	unsigned int targetStat_;
+	unsigned int targetStat2_;
+	Dimension dimension_;
+	bool EvaluateInternal(UnitItemInfo* uInfo, Condition* arg1, Condition* arg2);
 };
 
 class ResistAllCondition : public Condition
@@ -770,7 +840,7 @@ private:
 class AddCondition : public Condition
 {
 public:
-	AddCondition(string& k,
+	AddCondition(wstring& k,
 		BYTE         op,
 		unsigned int target) : key(k),
 		operation(op),
@@ -781,11 +851,266 @@ public:
 	};
 private:
 	BYTE           operation;
-	vector<string> codes;
+	vector<wstring> codes;
+	vector<shared_ptr<Formula<FormulaContext>>> fs;
 	vector<tuple<DWORD, DWORD>>  stats;
 	unsigned int   targetStat;
-	string         key;
+	wstring         key;
 	void           Init();
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class ReqStatCondition : public Condition
+{
+public:
+	enum class ReqStatType
+	{
+		STRENGTH,
+		DEXTERITY,
+		LEVEL,
+	};
+	ReqStatCondition(ReqStatType t, BYTE op, unsigned int target, unsigned int target2) :
+		type(t),
+		operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(ReqStatType type, UnitItemInfo* info);
+private:
+	ReqStatType	 type;
+	BYTE         operation;
+	unsigned int targetStat;
+	unsigned int targetStat2;
+	bool EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class BaseWeaponDamageCondition : public Condition
+{
+public:
+	enum class DamageType
+	{
+		MIN1H,
+		MAX1H,
+		MIN2H,
+		MAX2H,
+		MINTHROW,
+		MAXTHROW,
+		MINKICK,
+		MAXKICK,
+		MINSMITE,
+		MAXSMITE,
+	};
+
+	BaseWeaponDamageCondition(DamageType t,
+		BYTE op,
+		unsigned int target,
+		unsigned int target2) : type(t),
+		operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(DamageType type, UnitItemInfo* uInfo);
+private:
+	DamageType	   type;
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class BaseBlockCondition : public Condition
+{
+public:
+	BaseBlockCondition(BYTE op,
+		unsigned int target,
+		unsigned int target2) : operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UnitItemInfo* uInfo);
+private:
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class AllAttributesCondition : public Condition
+{
+public:
+	AllAttributesCondition(BYTE op,
+		unsigned int target,
+		unsigned int target2) : operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UnitItemInfo* uInfo);
+private:
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class MaxResCondition : public Condition
+{
+public:
+	MaxResCondition(BYTE op,
+		unsigned int target,
+		unsigned int target2) : operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UnitItemInfo* uInfo);
+private:
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class PlusDefCondition : public Condition
+{
+public:
+	PlusDefCondition(BYTE op,
+		unsigned int target,
+		unsigned int target2) : operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UnitItemInfo* uInfo);
+private:
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	bool           EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class UpStatCondition : public Condition
+{
+public:
+	enum class UpStatType
+	{
+		STRENGTH,
+		DEXTERITY,
+		LEVEL,
+	};
+	UpStatCondition(UpStatType t, BYTE op, unsigned int target, unsigned int target2) :
+		type(t),
+		operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UpStatType type, UnitItemInfo* info);
+	static ItemsTxt* GetUpTxt(UnitItemInfo* info);
+private:
+	UpStatType	 type;
+	BYTE         operation;
+	unsigned int targetStat;
+	unsigned int targetStat2;
+	bool EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class MaxSocketsCondition : public Condition
+{
+public:
+	MaxSocketsCondition(BYTE op, unsigned int target, unsigned int target2):
+		operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(UnitItemInfo* uInfo);
+private:
+	BYTE			operation;
+	unsigned int	targetStat;
+	unsigned int	targetStat2;
+	bool			EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class MinMaxDamageCondition : public Condition
+{
+public:
+	enum class DamageType
+	{
+		MIN,
+		MAX
+	};
+
+	MinMaxDamageCondition(DamageType type, BYTE op, unsigned int target, unsigned int target2):
+		type(type),
+		operation(op),
+		targetStat(target),
+		targetStat2(target2)
+	{
+		conditionType = CT_Operand;
+	}
+
+	static int GetValue(DamageType type, UnitItemInfo* uInfo);
+private:
+	BYTE			operation;
+	unsigned int	targetStat;
+	unsigned int	targetStat2;
+	DamageType		type;
+	bool			EvaluateInternal(UnitItemInfo* uInfo,
+		Condition* arg1,
+		Condition* arg2);
+};
+
+class FormulaCondition : public Condition
+{
+public:
+	FormulaCondition(wstring& k,
+		BYTE         op,
+		unsigned int target,
+		unsigned int target2);
+private:
+	Formula<FormulaContext>* f;
+	BYTE           operation;
+	unsigned int   targetStat;
+	unsigned int   targetStat2;
+	wstring         key;
 	bool           EvaluateInternal(UnitItemInfo* uInfo,
 		Condition* arg1,
 		Condition* arg2);
@@ -796,21 +1121,21 @@ extern FalseCondition* falseCondition;
 
 struct ActionReplace
 {
-	string key;
-	string value;
+	wstring key;
+	wstring value;
 };
 
 struct ColorReplace
 {
-	string key;
+	wstring key;
 	int    value;
 };
 
 struct Action
 {
 	bool   stopProcessing;
-	string name;
-	string description;
+	wstring name;
+	wstring description;
 	int    colorOnMap;
 	int    borderColor;
 	int    dotColor;
@@ -830,8 +1155,8 @@ struct Action
 		soundID(0),
 		pingLevel(-1),
 		stopProcessing(true),
-		name(""),
-		description("")
+		name(L""),
+		description(L"")
 	{
 	}
 };
@@ -862,7 +1187,7 @@ struct Rule
 	vector<ReplacementValue> description;
 
 	Rule(vector<Condition*>& inputConditions,
-		string* str);
+		wstring* str);
 
 	// TODO: Should this really be defined in the header? This will force it to be inlined AFAIK. -ybd
 	bool Evaluate(UnitItemInfo* uInfo)
@@ -875,35 +1200,35 @@ struct Rule
 		return EvaluateTree(uInfo);
 	}
 
-	string ApplyName(ReplaceContext& ctx);
-	string ApplyDescription(ReplaceContext& ctx);
+	wstring ApplyName(ReplaceContext& ctx);
+	wstring ApplyDescription(ReplaceContext& ctx);
 	bool EvaluateTree(UnitItemInfo* uInfo);
 private:
 	bool Convert();
 	bool EvaluateTreeInternal(UnitItemInfo* uInfo, size_t id);
 };
 
-class ItemDescLookupCache : public RuleLookupCache<string>
+class ItemDescLookupCache : public RuleLookupCache<wstring>
 {
-	string make_cached_T(UnitItemInfo* uInfo) override;
-	string to_str(const string& name) override;
+	wstring make_cached_T(UnitItemInfo* uInfo) override;
+	string to_str(const wstring& name) override;
 
 public:
 	ItemDescLookupCache(const std::vector<Rule*>& RuleList) :
-		RuleLookupCache<string>(RuleList)
+		RuleLookupCache<wstring>(RuleList)
 	{
 	}
 };
 
-class ItemNameLookupCache : public RuleLookupCache<string, const string&>
+class ItemNameLookupCache : public RuleLookupCache<wstring, const wstring&>
 {
-	string make_cached_T(UnitItemInfo* uInfo,
-		const string& name) override;
-	string to_str(const string& name) override;
+	wstring make_cached_T(UnitItemInfo* uInfo,
+		const wstring& name) override;
+	string to_str(const wstring& name) override;
 
 public:
 	ItemNameLookupCache(const std::vector<Rule*>& RuleList) :
-		RuleLookupCache<string, const string&>(RuleList)
+		RuleLookupCache<wstring, const wstring&>(RuleList)
 	{
 	}
 };
@@ -923,8 +1248,8 @@ public:
 extern vector<Rule*>                RuleList;
 extern vector<Rule*>                MapRuleList;
 extern vector<Rule*>                IgnoreRuleList;
-extern vector<pair<string, string>> rules;
-extern vector<pair<string, string>> aliases;
+extern vector<pair<wstring, wstring>> rules;
+extern vector<pair<wstring, wstring>> aliases;
 extern ItemDescLookupCache          item_desc_cache;
 extern ItemNameLookupCache          item_name_cache;
 extern MapActionLookupCache         map_action_cache;
@@ -935,39 +1260,41 @@ namespace ItemDisplay
 	void UninitializeItemRules();
 }
 
-void            BuildAction(string* str,
+void            BuildAction(wstring* str,
 	Action* act);
-int ParsePingLevel(Action* act, const string& reg_string);
-int ParseSoundID(Action* act, const string& reg_string);
-string ParseDescription(Action* act);
+int ParsePingLevel(Action* act, const wstring& reg_string);
+int ParseSoundID(Action* act, const wstring& reg_string);
+wstring ParseDescription(Action* act);
 int    ParseMapColor(Action* act,
-	const string& reg_string);
+	const wstring& reg_string);
 void HandleUnknownItemCode(char* code,
 	char* tag);
-BYTE        GetOperation(string* op);
+BYTE        GetOperation(wstring* op);
 inline bool IntegerCompare(int Lvalue,
 	int          operation,
 	int Rvalue);
 void GetItemName(UnitItemInfo* uInfo,
-	string& name);
+	wstring& name);
 void TrimItemText(UnitItemInfo* uInfo,
-	string& name,
+	wstring& name,
 	BOOL bLimit);
-string NameVarSockets(UnitItemInfo* uInfo);
-string NameVarRuneNum(UnitItemInfo* uInfo);
-string NameVarRuneName(UnitItemInfo* uInfo);
-string NameVarGemLevel(UnitItemInfo* uInfo);
-string NameVarGemType(UnitItemInfo* uInfo);
-string NameVarIlvl(UnitItemInfo* uInfo);
-string NameVarAlvl(UnitItemInfo* uInfo);
-string NameVarCraftAlvl(UnitItemInfo* uInfo);
-string NameVarLevelReq(UnitItemInfo* uInfo);
-string NameVarWeaponSpeed(ItemsTxt* itemTxt);
-string NameVarRangeAdder(ItemsTxt* itemTxt);
-string NameVarSellValue(UnitItemInfo* uInfo, ItemsTxt* itemTxt);
-string NameVarQty(UnitItemInfo* uInfo);
-string NameVarAllRes(UnitItemInfo* uInfo);
-string NameVarEd(UnitItemInfo* uInfo);
+wstring NameVarSockets(UnitItemInfo* uInfo);
+wstring NameVarRuneNum(UnitItemInfo* uInfo);
+wstring NameVarRuneName(UnitItemInfo* uInfo);
+wstring NameVarGemLevel(UnitItemInfo* uInfo);
+wstring NameVarGemType(UnitItemInfo* uInfo);
+wstring NameVarIlvl(UnitItemInfo* uInfo);
+wstring NameVarAlvl(UnitItemInfo* uInfo);
+wstring NameVarCraftAlvl(UnitItemInfo* uInfo);
+wstring NameVarRerollAlvl(UnitItemInfo* uInfo);
+wstring NameVarLevelReq(UnitItemInfo* uInfo);
+wstring NameVarWeaponSpeed(ItemsTxt* itemTxt);
+wstring NameVarRangeAdder(ItemsTxt* itemTxt);
+wstring NameVarBuyValue(UnitItemInfo* uInfo, ItemsTxt* itemTxt);
+wstring NameVarSellValue(UnitItemInfo* uInfo, ItemsTxt* itemTxt);
+wstring NameVarQty(UnitItemInfo* uInfo);
+wstring NameVarAllRes(UnitItemInfo* uInfo);
+wstring NameVarEd(UnitItemInfo* uInfo);
 
 BYTE GetAffixLevel(BYTE ilvl,
 	BYTE qlvl,
@@ -975,3 +1302,4 @@ BYTE GetAffixLevel(BYTE ilvl,
 BYTE GetRequiredLevel(UnitAny* item);
 BYTE RuneNumberFromItemCode(char* code);
 int GetStatFromList(UnitItemInfo* uInfo, int itemStat);
+BYTE ComputeRerollAffixLevel(UnitItemInfo* uInfo);

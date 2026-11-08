@@ -25,7 +25,7 @@ void ScreenInfo::OnLoad()
 
 	if (BH::cGuardLoaded)
 	{
-		Texthook* cGuardText = new Texthook(Perm, 790, 23, "ÿc4cGuard Loaded");
+		Texthook* cGuardText = new Texthook(Perm, 790, 23, "Ã¿c4cGuard Loaded");
 		cGuardText->SetAlignment(Right);
 	}
 	gameTimer = GetTickCount();
@@ -68,9 +68,44 @@ void ScreenInfo::OnGameJoin()
 	startLevel = (int)D2COMMON_GetUnitStat(pUnit, STAT_LEVEL, 0);
 }
 
+void ScreenInfo::PasteFromClipboard()
+{
+	if (!IsClipboardFormatAvailable(CF_UNICODETEXT))
+		return;
+
+	OpenClipboard(NULL);
+	HGLOBAL glob = GetClipboardData(CF_UNICODETEXT);
+	wchar_t* cbtext = (wchar_t*)GlobalLock(glob);
+	if (!cbtext)
+	{
+		GlobalUnlock(glob);
+		CloseClipboard();
+		return;
+	}
+	size_t len = wcslen(cbtext);
+	std::wstring text(cbtext, len);
+	GlobalUnlock(glob);
+	CloseClipboard();
+
+	HWND hWnd = D2GFX_GetHwnd();
+	for (unsigned int i = 0; i < len; i++)
+	{
+		PostMessageW(hWnd, WM_CHAR, (WPARAM)text[i], 0);
+	}
+}
+
 void ScreenInfo::OnKey(bool up, BYTE key, LPARAM lParam, bool* block)
 {
+	if (up)
+		return;
 
+	bool ctrlState = ((GetKeyState(VK_LCONTROL) & 0x80) || (GetKeyState(VK_RCONTROL) & 0x80));
+	// Ctrl+V paste in chat console
+	if (key == 0x56 && ctrlState && D2CLIENT_GetUIState(UI_CHAT_CONSOLE))
+	{
+		*block = true;
+		PasteFromClipboard();
+	}
 }
 
 
@@ -81,66 +116,10 @@ void ScreenInfo::OnRightClick(bool up, int x, int y, bool* block)
 		return;
 
 	int left = 130, top = 500, width = 540, height = 42;
-	if (D2CLIENT_GetUIState(0x05) && x >= left && x <= (left + width) && y >= top && y <= (top + height))
+	if (D2CLIENT_GetUIState(UI_CHAT_CONSOLE) && x >= left && x <= (left + width) && y >= top && y <= (top + height))
 	{
 		*block = true;
-
-		if (IsClipboardFormatAvailable(CF_TEXT))
-		{
-			OpenClipboard(NULL);
-			HGLOBAL glob = GetClipboardData(CF_TEXT);
-			size_t size = GlobalSize(glob);
-			char* cbtext = (char*)glob;
-
-			std::vector<INPUT> events;
-			char buffer[120] = { 0 };
-			GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_ILANGUAGE, buffer, sizeof(buffer));
-			HKL hKeyboardLayout = LoadKeyboardLayout(buffer, KLF_ACTIVATE);
-
-			for (unsigned int i = 0; i < size - 1; i++)
-			{
-				INPUT keyEvent = { 0 };
-				const SHORT Vk = VkKeyScanEx(cbtext[i], hKeyboardLayout);
-				const UINT VKey = MapVirtualKey(LOBYTE(Vk), 0);
-
-				if (HIBYTE(Vk) == 1)
-				{  // shift key must be pressed
-					ZeroMemory(&keyEvent, sizeof(keyEvent));
-					keyEvent.type = INPUT_KEYBOARD;
-					keyEvent.ki.dwFlags = KEYEVENTF_SCANCODE;
-					keyEvent.ki.wScan = MapVirtualKey(VK_LSHIFT, 0);
-					events.push_back(keyEvent);
-				}
-
-				ZeroMemory(&keyEvent, sizeof(keyEvent));
-				keyEvent.type = INPUT_KEYBOARD;
-				keyEvent.ki.dwFlags = KEYEVENTF_SCANCODE;
-				keyEvent.ki.wScan = VKey;
-				events.push_back(keyEvent);
-
-				ZeroMemory(&keyEvent, sizeof(keyEvent));
-				keyEvent.type = INPUT_KEYBOARD;
-				keyEvent.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-				keyEvent.ki.wScan = VKey;
-				events.push_back(keyEvent);
-
-				if (HIBYTE(Vk) == 1)
-				{  // release shift key
-					ZeroMemory(&keyEvent, sizeof(keyEvent));
-					keyEvent.type = INPUT_KEYBOARD;
-					keyEvent.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-					keyEvent.ki.wScan = MapVirtualKey(VK_LSHIFT, 0);
-					events.push_back(keyEvent);
-				}
-			}
-			CloseClipboard();
-
-			if (hKeyboardLayout)
-			{
-				UnloadKeyboardLayout(hKeyboardLayout);
-			}
-			int retval = SendInput(events.size(), &events[0], sizeof(INPUT));
-		}
+		PasteFromClipboard();
 	}
 }
 
@@ -313,7 +292,7 @@ void ScreenInfo::OnAutomapDraw()
 		{
 			areaLevel = 85;
 			szAreaLevel = to_string(areaLevel);
-			szLevel = "ÿc;" + szLevel + " (" + to_string(szAreaLevel) + ")";
+			szLevel = "Ã¿c;" + szLevel + " (" + to_string(szAreaLevel) + ")";
 		}
 		else
 		{
@@ -362,6 +341,26 @@ void ScreenInfo::OnAutomapDraw()
 			Texthook::Draw(*p_D2CLIENT_ScreenSizeX - 10, y, Right, 0, Gold, "%s", key.c_str());
 			y += 16;
 		}
+	}
+
+	if (g_monstersRemaining.active)
+	{
+		char szMonsters[32];
+		int nCount = g_monstersRemaining.count;
+		if (nCount <= 0)
+		{
+			sprintf_s(szMonsters, sizeof(szMonsters), "0 Monsters Remaining");
+		}
+		else if (nCount > 100)
+		{
+			sprintf_s(szMonsters, sizeof(szMonsters), "100+ Monsters Remaining");
+		}
+		else
+		{
+			sprintf_s(szMonsters, sizeof(szMonsters), "%d Monsters Remaining", nCount);
+		}
+		Texthook::Draw(*p_D2CLIENT_ScreenSizeX - 10, y, Right, 0, Gold, "%s", szMonsters);
+		y += 16;
 	}
 
 	if (pUnit->pPlayerData && pUnit->pPlayerData->nItemAllocation != 0)

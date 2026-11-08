@@ -121,7 +121,7 @@ void Gamefilter::OnRealmPacketRecv(BYTE* pPacket, bool* blockPacket) {
 		}
 
 		for (unsigned int i = 0; i < sFilter.length(); i++)
-			sFilter[i] = ::toupper(sFilter[i]);
+			sFilter[i] = (sFilter[i] >= 'a' && sFilter[i] <= 'z') ? (sFilter[i] - 32) : sFilter[i];
 		sLastFilter = sFilter;
 
 		ParsedFilterString parsedFilter(sFilter.c_str());
@@ -218,7 +218,7 @@ BOOL __stdcall Gamefilter::Filterbox_InputHandler(EditBox* pControl, DWORD dwLen
 
 	for (unsigned int i = 0; i < sFilter.length(); i++)
 	{
-		sFilter[i] = ::toupper(sFilter[i]);
+		sFilter[i] = (sFilter[i] >= 'a' && sFilter[i] <= 'z') ? (sFilter[i] - 32) : sFilter[i];
 	}
 	sLastFilter = sFilter;
 

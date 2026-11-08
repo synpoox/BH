@@ -107,9 +107,9 @@ std::map<int, int> weponSpeedToTblIndex = {
 UnitAny* Item::viewingUnit;
 
 Patch* itemNamePatch = new Patch(Call, D2CLIENT, { 0x92366, 0x96736 }, (int)ItemName_Interception, 6);
-Patch* itemPropertiesPatch = new Patch(Jump, D2CLIENT, { 0x5612C, 0x2E3FC }, (int)GetProperties_Interception, 6);
-Patch* itemPropertyStringDamagePatch = new Patch(Call, D2CLIENT, { 0x55D7B, 0x2E04B }, (int)GetItemPropertyStringDamage_Interception, 5);
-Patch* itemPropertyStringPatch = new Patch(Call, D2CLIENT, { 0x55D9D, 0x2E06D }, (int)GetItemPropertyString_Interception, 5);
+//Patch* itemPropertiesPatch = new Patch(Jump, D2CLIENT, { 0x5612C, 0x2E3FC }, (int)GetProperties_Interception, 6);
+//Patch* itemPropertyStringDamagePatch = new Patch(Call, D2CLIENT, { 0x55D7B, 0x2E04B }, (int)GetItemPropertyStringDamage_Interception, 5);
+//Patch* itemPropertyStringPatch = new Patch(Call, D2CLIENT, { 0x55D9D, 0x2E06D }, (int)GetItemPropertyString_Interception, 5);
 Patch* viewInvPatch1 = new Patch(Call, D2CLIENT, { 0x953E2, 0x997B2 }, (int)ViewInventoryPatch1_ASM, 6);
 Patch* viewInvPatch2 = new Patch(Call, D2CLIENT, { 0x94AB4, 0x98E84 }, (int)ViewInventoryPatch2_ASM, 6);
 Patch* viewInvPatch3 = new Patch(Call, D2CLIENT, { 0x93A6F, 0x97E3F }, (int)ViewInventoryPatch3_ASM, 5);
@@ -125,7 +125,9 @@ Patch* permShowItems5 = new Patch(Call, D2CLIENT, { 0xA6BA3, 0x63443 }, (int)Per
 Patch* itemDropSoundIntercept1 = new Patch(NOP, D2CLIENT, { 0x84C38 }, 0, 5);
 
 Patch* newGroundIntercept = new Patch(Call, D2CLIENT, { 0xAE0DA }, (int)D2CLIENT_GetItemFromPacketIntercept_NewGround_STUB, 5);
+Patch* dropToGroundIntercept = new Patch(Call, D2CLIENT, { 0xAE0F8 }, (int)D2CLIENT_ItemPacketBuildAction2_DropToGround_INTERCEPT_STUB, 5);
 Patch* oldGroundIntercept = new Patch(Call, D2CLIENT, { 0xAE108 }, (int)GetItemFromPacket_OldGround, 5);
+Patch* putInContainerIntercept = new Patch(Call, D2CLIENT, { 0xAE117 }, (int)D2CLIENT_ItemPacketBuildAction4_PutInContainer_INTERCEPT_STUB, 5);
 
 using namespace Drawing;
 
@@ -146,10 +148,12 @@ void Item::OnLoad() {
 
 	newGroundIntercept->Install();
 	oldGroundIntercept->Install();
+	dropToGroundIntercept->Install();
+	putInContainerIntercept->Install();
 
-	itemPropertiesPatch->Install();
-	itemPropertyStringDamagePatch->Install();
-	itemPropertyStringPatch->Install();
+	//itemPropertiesPatch->Install();
+	//itemPropertyStringDamagePatch->Install();
+	//itemPropertyStringPatch->Install();
 
 	itemNamePatch->Install();
 
@@ -189,8 +193,7 @@ void GetItemStats()
 		StatProperties* bits = new StatProperties();
 		bits->pItemStatCostTxt = &(*p_D2COMMON_sgptDataTable)->pItemStatCostTxt[id];
 		bits->statId = id;
-		char* statString = UnicodeToAnsi(GetTblEntryByIndex(bits->pItemStatCostTxt->wDescStrPos, TBLOFFSET_STRING));
-		bits->name = statString;
+		bits->name = GetTblEntryByIndex(bits->pItemStatCostTxt->wDescStrPos, TBLOFFSET_STRING);
 		AllStatList.push_back(bits);
 	}
 }
@@ -385,10 +388,10 @@ void GetWeaponAttributes()
 		}
 
 		ItemAttributes* attrs = new ItemAttributes();
-		attrs->name = UnicodeToAnsi(GetTblEntryByIndex(pWeapons->wnamestr, TBLOFFSET_STRING));
+		attrs->name = GetTblEntryByIndex(pWeapons->wnamestr, TBLOFFSET_STRING);
 		attrs->category = pWeapons->nType;
-		attrs->width = 0;
-		attrs->height = 0;
+		attrs->width = pWeapons->binvwidth;
+		attrs->height = pWeapons->binvheight;
 		attrs->stackable = stackable;
 		attrs->useable = useable;
 		attrs->throwable = throwable;
@@ -471,10 +474,10 @@ void GetArmorAttributes()
 		}
 
 		ItemAttributes* attrs = new ItemAttributes();
-		attrs->name = UnicodeToAnsi(GetTblEntryByIndex(pArmor->wnamestr, TBLOFFSET_STRING));
+		attrs->name = GetTblEntryByIndex(pArmor->wnamestr, TBLOFFSET_STRING);
 		attrs->category = pArmor->nType;
-		attrs->width = 0;
-		attrs->height = 0;
+		attrs->width = pArmor->binvwidth;
+		attrs->height = pArmor->binvheight;
 		attrs->stackable = stackable;
 		attrs->useable = useable;
 		attrs->throwable = throwable;
@@ -503,11 +506,25 @@ void GetMiscAttributes()
 		BYTE stackable = pMisc->bstackable > 0 ? pMisc->bstackable : 0;
 		BYTE useable = pMisc->buseable > 0 ? pMisc->buseable : 0;
 		BYTE throwable = throwableMap[pMisc->nType] > 0 ? throwableMap[pMisc->nType] : 0;
-		unsigned int miscFlags = 0;
+		unsigned int baseFlags = 0;
+		unsigned int miscFlags = ITEM_GROUP_ALLMISC;
 
 		std::set<WORD> ancestorTypes;
 		FindAncestorTypes(pMisc->nType, ancestorTypes, parentMap1, parentMap2);
 		FindAncestorTypes(pMisc->wtype2, ancestorTypes, parentMap1, parentMap2);
+
+		if (pMisc->dwcode == pMisc->dwultracode)
+		{
+			baseFlags |= ITEM_GROUP_ELITE;
+		}
+		else if (pMisc->dwcode == pMisc->dwubercode)
+		{
+			baseFlags |= ITEM_GROUP_EXCEPTIONAL;
+		}
+		else
+		{
+			baseFlags |= ITEM_GROUP_NORMAL;
+		}
 
 		if (ancestorTypes.find(ITEM_TYPE_RUNE) != ancestorTypes.end() || ancestorTypes.find(ITEM_TYPE_STACK_RUNE) != ancestorTypes.end()) {
 			miscFlags |= ITEM_GROUP_RUNE;
@@ -572,14 +589,14 @@ void GetMiscAttributes()
 		}
 
 		ItemAttributes* attrs = new ItemAttributes();
-		attrs->name = UnicodeToAnsi(GetTblEntryByIndex(pMisc->wnamestr, TBLOFFSET_STRING));
+		attrs->name = GetTblEntryByIndex(pMisc->wnamestr, TBLOFFSET_STRING);
 		attrs->category = pMisc->nType;
-		attrs->width = 0;
-		attrs->height = 0;
+		attrs->width = pMisc->binvwidth;
+		attrs->height = pMisc->binvheight;
 		attrs->stackable = stackable;
 		attrs->useable = useable;
 		attrs->throwable = throwable;
-		attrs->baseFlags = 0;
+		attrs->baseFlags = baseFlags;
 		attrs->weaponFlags = 0;
 		attrs->armorFlags = 0;
 		attrs->miscFlags = miscFlags;
@@ -770,9 +787,9 @@ void Item::ChangeFilterLevels(int newLevel) {
 
 void Item::OnUnload() {
 	itemNamePatch->Remove();
-	itemPropertiesPatch->Remove();
-	itemPropertyStringDamagePatch->Remove();
-	itemPropertyStringPatch->Remove();
+	//itemPropertiesPatch->Remove();
+	//itemPropertyStringDamagePatch->Remove();
+	//itemPropertyStringPatch->Remove();
 	viewInvPatch1->Remove();
 	viewInvPatch2->Remove();
 	viewInvPatch3->Remove();
@@ -784,6 +801,8 @@ void Item::OnUnload() {
 	itemDropSoundIntercept1->Remove();
 	newGroundIntercept->Remove();
 	oldGroundIntercept->Remove();
+	dropToGroundIntercept->Remove();
+	putInContainerIntercept->Remove();
 	ItemDisplay::UninitializeItemRules();
 }
 
@@ -874,6 +893,47 @@ int CreateUnitItemInfo(UnitItemInfo* uInfo, UnitAny* item) {
 	}
 }
 
+// True only for the hp1-hp5 potion bases; other hp-prefixed codes and rejuvenation/utility potions are not matched.
+bool IsHealingPotion(UnitAny* pItem)
+{
+	if (!pItem || pItem->dwType != UNIT_ITEM) { return false; }
+	ItemsTxt* pItemTxt = D2COMMON_GetItemText(pItem->dwTxtFileNo);
+	if (!pItemTxt || !pItemTxt->szCode) { return false; }
+	char* szCode = pItemTxt->szCode;
+	return szCode[0] == 'h' && szCode[1] == 'p' && szCode[2] >= '1' && szCode[2] <= '5';
+}
+
+// True only for the mp1-mp5 potion bases; other mp-prefixed codes (e.g. Military Pick "mpi")
+// and rejuvenation/utility potions are not matched.
+bool IsManaPotion(UnitAny* pItem)
+{
+	if (!pItem || pItem->dwType != UNIT_ITEM) { return false; }
+	ItemsTxt* pItemTxt = D2COMMON_GetItemText(pItem->dwTxtFileNo);
+	if (!pItemTxt || !pItemTxt->szCode) { return false; }
+	char* szCode = pItemTxt->szCode;
+	return szCode[0] == 'm' && szCode[1] == 'p' && szCode[2] >= '1' && szCode[2] <= '5';
+}
+
+// True when the undiscovered/unowned override force-shows a unique/set item;
+// untracked items and items the dll cannot query keep normal filter behaviour.
+// Mirrors DiscoveryStateCondition::EvaluateInternal.
+bool LootFilterOverridesForceShow(UnitAny* pItem)
+{
+	if (!App.lootfilter.alwaysShowUndiscovered.value
+		&& !App.lootfilter.alwaysShowUnowned.value) { return false; }
+	if (!pItem || !pItem->pItemData) { return false; }
+	if (!App.pd2.pd2GetItemDiscoveryStateImpl) { return false; }
+	DWORD dwQuality = pItem->pItemData->dwQuality;
+	if (dwQuality != ITEM_QUALITY_UNIQUE && dwQuality != ITEM_QUALITY_SET) { return false; }
+	// Unidentified uniques/sets have no file index; the sentinel means "all variants".
+	DWORD dwFileIndex = (pItem->pItemData->dwFlags & ITEM_IDENTIFIED)
+		? pItem->pItemData->dwFileIndex
+		: 0xFFFFFFFF;
+	DWORD dwState = App.pd2.pd2GetItemDiscoveryStateImpl(dwFileIndex, dwQuality, pItem->dwTxtFileNo);
+	return (App.lootfilter.alwaysShowUndiscovered.value && !(dwState & DISCOVERYSTATE_ALLDISCOVERED))
+		|| (App.lootfilter.alwaysShowUnowned.value && !(dwState & DISCOVERYSTATE_ALLOWNED));
+}
+
 void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 {
 	ItemsTxt* itemTxt = D2COMMON_GetItemText(pItem->dwTxtFileNo);
@@ -900,20 +960,33 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 		break;
 	}
 
-	char* szName = UnicodeToAnsi(name);
-	string itemName = szName;
+	std::wstring itemName(name);
 	char* code = D2COMMON_GetItemText(pItem->dwTxtFileNo)->szCode;
 
-	if (App.lootfilter.enableFilter.value) {
+	if (App.lootfilter.enableFilter.value
+		&& !((App.lootfilter.hideHealingPotions.value && IsHealingPotion(pItem))
+			|| (App.lootfilter.hideManaPotions.value && IsManaPotion(pItem)))) {
 		UnitItemInfo uInfo;
 		if (!CreateUnitItemInfo(&uInfo, pItem)) {
 			GetItemName(&uInfo, itemName);
+			if (itemName.empty() && LootFilterOverridesForceShow(pItem)) {
+				itemName = name;
+				OrigGetItemName(pItem, itemName, code);
+			}
 		}
 		else {
 			HandleUnknownItemCode(uInfo.itemCode, "name");
 		}
 	}
-	else {
+	else if (App.lootfilter.hideHealingPotions.value && IsHealingPotion(pItem)) {
+		// An empty name keeps the item out of the alt list
+		itemName.clear();
+	}
+	else if (App.lootfilter.hideManaPotions.value && IsManaPotion(pItem)) {
+		// An empty name keeps the item out of the alt list
+		itemName.clear();
+	}
+	else if (!App.lootfilter.enableFilter.value) {
 		OrigGetItemName(pItem, itemName, code);
 	}
 
@@ -923,12 +996,12 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 	{
 		if (!App.d2gl.usingD2GL.value && !App.d2gl.usingHDText.value)
 		{
-			itemName += "\nÿc1(Allocated)";
+			itemName += L"\n\xFF" L"c1(Allocated)";
 		}
 		else
 		{
 			// Half transparency
-			itemName = "\xFF" "c\x42" + itemName;
+			itemName = L"\xFF" L"c\x42" + itemName;
 		}
 	}
 
@@ -946,17 +1019,16 @@ void __fastcall Item::ItemNamePatch(wchar_t* name, UnitAny* pItem, int nameSize)
 	// ÿc9 (yellow)
 
 	// Pre-trim "ending" color code that would otherwise be split into a partial code with
-	// the following conversion
-	int lastColorPos = itemName.rfind("ÿc");
-	if (lastColorPos != string::npos && lastColorPos > nameSize - 6)
+	// the following conversion.
+	size_t lastColorPos = itemName.rfind(L"\xFF" L"c");
+	if (lastColorPos != wstring::npos && lastColorPos > (size_t)(nameSize - 5))
 	{
 		itemName.resize(lastColorPos);
 	}
 
 	// The game adds the item color code _after_ this ItemNamePatch intercept, so we need to
 	// reduce the total allowed size to account for this
-	MultiByteToWideChar(CODE_PAGE, MB_PRECOMPOSED, itemName.c_str(), -1, name, nameSize - 4);
-	delete[] szName;
+	wcsncpy_s(name, nameSize, itemName.c_str(), _TRUNCATE);
 }
 
 // Path when an item first drops from a monster, chest, etc.
@@ -981,6 +1053,24 @@ void __stdcall GetItemFromPacket_NewGround(px9c* pPacket)
 	return;
 }
 
+void __stdcall GetItemFromPacket_DropToGround(px9c* pPacket)
+{
+	D2CLIENT_ItemPacketBuildAction2_DropToGround_STUB(pPacket);
+	/*
+	UnitAny* pItem = D2CLIENT_FindServerSideUnit(pPacket->nItemId, UNIT_ITEM);
+	UnitItemInfo uInfo;
+	if (!CreateUnitItemInfo(&uInfo, pItem))
+	{
+		Item::ProcessItemPacketFilterRules(&uInfo, pPacket);
+	}
+	else
+	{
+		HandleUnknownItemCode(uInfo.itemCode, "from packet");
+	}
+	*/
+	return;
+}
+
 // Path when an item that was previously dropped comes into view
 void __stdcall GetItemFromPacket_OldGround(px9c* pPacket)
 {
@@ -999,8 +1089,33 @@ void __stdcall GetItemFromPacket_OldGround(px9c* pPacket)
 	return;
 }
 
+void __stdcall GetItemFromPacket_PutInContainer(px9c* pPacket)
+{
+	D2CLIENT_ItemPacketBuildAction4_PutInContainer_STUB(pPacket);
+	/*
+	UnitAny* pItem = D2CLIENT_FindServerSideUnit(pPacket->nItemId, UNIT_ITEM);
+	UnitItemInfo uInfo;
+	if (!CreateUnitItemInfo(&uInfo, pItem))
+	{
+		Item::ProcessItemPacketFilterRules(&uInfo, pPacket);
+	}
+	else
+	{
+		HandleUnknownItemCode(uInfo.itemCode, "from packet");
+	}
+	*/
+	return;
+}
+
 void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 {
+	// Potions are hidden regardless of the filter entirely
+	if ((App.lootfilter.hideHealingPotions.value && IsHealingPotion(uInfo->item))
+		|| (App.lootfilter.hideManaPotions.value && IsManaPotion(uInfo->item))) {
+		uInfo->item->dwFlags2 |= UNITFLAGEX_INVISIBLE;
+		return;
+	}
+
 	if (App.lootfilter.enableFilter.value) {
 		bool showOnMap = false;
 		auto color = UNDEFINED_COLOR;
@@ -1034,7 +1149,7 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 				) {
 				PrintText(color, "%s%s Dropped",
 					uInfo->attrs->name.c_str(),
-					App.legacy.verboseNotifications.toggle.isEnabled ? " \377c5drop" : ""
+					App.legacy.verboseNotifications.toggle.isEnabled ? " ÿc5drop" : ""
 				);
 			}
 			if (App.legacy.closeNotifications.toggle.isEnabled &&
@@ -1043,7 +1158,7 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 				) {
 				PrintText(color, "%s%s",
 					uInfo->attrs->name.c_str(),
-					App.legacy.verboseNotifications.toggle.isEnabled ? " \377c5close" : ""
+					App.legacy.verboseNotifications.toggle.isEnabled ? " ÿc5close" : ""
 				);
 			}
 			*/
@@ -1051,7 +1166,8 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 		else if (!showOnMap) {
 			for (vector<Rule*>::iterator it = RuleList.begin(); it != RuleList.end(); it++) {
 				if ((*it)->Evaluate(uInfo)) {
-					if ((*it)->action.name.length() == 0 && Item::GetFilterLevel() > 0)
+					if ((*it)->action.name.length() == 0 && Item::GetFilterLevel() > 0
+						&& !LootFilterOverridesForceShow(uInfo->item))
 					{
 						uInfo->item->dwFlags2 |= UNITFLAGEX_INVISIBLE;
 					}
@@ -1062,7 +1178,7 @@ void Item::ProcessItemPacketFilterRules(UnitItemInfo* uInfo, px9c* pPacket)
 	}
 }
 
-void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
+void Item::OrigGetItemName(UnitAny* item, wstring& itemName, char* code)
 {
 	bool displayItemLevel = App.lootfilter.showIlvl.value;
 	if (App.legacy.shortenItemNames.toggle.isEnabled)
@@ -1070,84 +1186,84 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		// We will also strip ilvls from these items
 		if (code[0] == 't' && code[1] == 's' && code[2] == 'c')  // town portal scroll
 		{
-			itemName = "ÿc2**ÿc0TP";
+			itemName = L"\xFF" L"c2**\xFF" L"c0TP";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'i' && code[1] == 's' && code[2] == 'c')  // identify scroll
 		{
-			itemName = "ÿc2**ÿc0ID";
+			itemName = L"\xFF" L"c2**\xFF" L"c0ID";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'v' && code[1] == 'p' && code[2] == 's')  // stamina potion
 		{
-			itemName = "Stam";
+			itemName = L"Stam";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'y' && code[1] == 'p' && code[2] == 's')  // antidote potion
 		{
-			itemName = "Anti";
+			itemName = L"Anti";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'w' && code[1] == 'm' && code[2] == 's')  // thawing potion
 		{
-			itemName = "Thaw";
+			itemName = L"Thaw";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'g' && code[1] == 'p' && code[2] == 's')  // rancid gas potion
 		{
-			itemName = "Ranc";
+			itemName = L"Ranc";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'o' && code[1] == 'p' && code[2] == 's')  // oil potion
 		{
-			itemName = "Oil";
+			itemName = L"Oil";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'g' && code[1] == 'p' && code[2] == 'm')  // choking gas potion
 		{
-			itemName = "Chok";
+			itemName = L"Chok";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'o' && code[1] == 'p' && code[2] == 'm')  // exploding potion
 		{
-			itemName = "Expl";
+			itemName = L"Expl";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'g' && code[1] == 'p' && code[2] == 'l')  // strangling gas potion
 		{
-			itemName = "Stra";
+			itemName = L"Stra";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'o' && code[1] == 'p' && code[2] == 'l')  // fulminating potion
 		{
-			itemName = "Fulm";
+			itemName = L"Fulm";
 			displayItemLevel = false;
 		}
 		else if (code[0] == 'h' && code[1] == 'p')  // healing potions
 		{
 			if (code[2] == '1')
 			{
-				itemName = "ÿc1**ÿc0Min Heal";
+				itemName = L"\xFF" L"c1**\xFF" L"c0Min Heal";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '2')
 			{
-				itemName = "ÿc1**ÿc0Lt Heal";
+				itemName = L"\xFF" L"c1**\xFF" L"c0Lt Heal";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '3')
 			{
-				itemName = "ÿc1**ÿc0Heal";
+				itemName = L"\xFF" L"c1**\xFF" L"c0Heal";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '4')
 			{
-				itemName = "ÿc1**ÿc0Gt Heal";
+				itemName = L"\xFF" L"c1**\xFF" L"c0Gt Heal";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '5')
 			{
-				itemName = "ÿc1**ÿc0Sup Heal";
+				itemName = L"\xFF" L"c1**\xFF" L"c0Sup Heal";
 				displayItemLevel = false;
 			}
 		}
@@ -1155,27 +1271,27 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		{
 			if (code[2] == '1')
 			{
-				itemName = "ÿc3**ÿc0Min Mana";
+				itemName = L"\xFF" L"c3**\xFF" L"c0Min Mana";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '2')
 			{
-				itemName = "ÿc3**ÿc0Lt Mana";
+				itemName = L"\xFF" L"c3**\xFF" L"c0Lt Mana";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '3')
 			{
-				itemName = "ÿc3**ÿc0Mana";
+				itemName = L"\xFF" L"c3**\xFF" L"c0Mana";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '4')
 			{
-				itemName = "ÿc3**ÿc0Gt Mana";
+				itemName = L"\xFF" L"c3**\xFF" L"c0Gt Mana";
 				displayItemLevel = false;
 			}
 			else if (code[2] == '5')
 			{
-				itemName = "ÿc3**ÿc0Sup Mana";
+				itemName = L"\xFF" L"c3**\xFF" L"c0Sup Mana";
 				displayItemLevel = false;
 			}
 		}
@@ -1183,12 +1299,12 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		{
 			if (code[2] == 's')
 			{
-				itemName = "ÿc;**ÿc0Rejuv";
+				itemName = L"\xFF" L"c;**\xFF" L"c0Rejuv";
 				displayItemLevel = false;
 			}
 			else if (code[2] == 'l')
 			{
-				itemName = "ÿc;**ÿc0Full";
+				itemName = L"\xFF" L"c;**\xFF" L"c0Full";
 				displayItemLevel = false;
 			}
 		}
@@ -1215,19 +1331,19 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		/*Essences*/
 		if (code[0] == 't' && code[1] == 'e' && code[2] == 's')
 		{
-			itemName = itemName + " (Andariel/Duriel)";
+			itemName = itemName + L" (Andariel/Duriel)";
 		}
 		if (code[0] == 'c' && code[1] == 'e' && code[2] == 'h')
 		{
-			itemName = itemName + " (Mephtisto)";
+			itemName = itemName + L" (Mephtisto)";
 		}
 		if (code[0] == 'b' && code[1] == 'e' && code[2] == 't')
 		{
-			itemName = itemName + " (Diablo)";
+			itemName = itemName + L" (Diablo)";
 		}
 		if (code[0] == 'f' && code[1] == 'e' && code[2] == 'd')
 		{
-			itemName = itemName + " (Baal)";
+			itemName = itemName + L" (Baal)";
 		}
 	}
 
@@ -1235,7 +1351,7 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 	{
 		if (App.legacy.showRuneNumbers.toggle.isEnabled && D2COMMON_GetItemText(item->dwTxtFileNo)->nType == 74)
 		{
-			itemName = to_string(item->dwTxtFileNo - 609) + " - " + itemName;
+			itemName = to_wstring(item->dwTxtFileNo - 609) + L" - " + itemName;
 		}
 		else
 		{
@@ -1244,19 +1360,19 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 				int sockets = D2COMMON_GetUnitStat(item, STAT_SOCKETS, 0);
 				if (sockets > 0)
 				{
-					itemName += "(" + to_string(sockets) + ")";
+					itemName += L"(" + to_wstring(sockets) + L")";
 				}
 			}
 
 			if (App.legacy.showEthereal.toggle.isEnabled && item->pItemData->dwFlags & ITEM_ETHEREAL)
 			{
-				itemName = "Eth " + itemName;
+				itemName = L"Eth " + itemName;
 			}
 
 			/*show iLvl unless it is equal to 1*/
 			if (displayItemLevel && item->pItemData->dwItemLevel != 1)
 			{
-				itemName += " L" + to_string(item->pItemData->dwItemLevel);
+				itemName += L" L" + to_wstring(item->pItemData->dwItemLevel);
 			}
 		}
 	}
@@ -1265,16 +1381,16 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		if (App.legacy.showSockets.toggle.isEnabled) {
 			int sockets = D2COMMON_GetUnitStat(item, STAT_SOCKETS, 0);
 			if (sockets > 0)
-				itemName += "(" + to_string(sockets) + ")";
+				itemName += L"(" + to_wstring(sockets) + L")";
 		}
 		if (App.legacy.showEthereal.toggle.isEnabled && item->pItemData->dwFlags & ITEM_ETHEREAL)
-			itemName += "(Eth)";
+			itemName += L"(Eth)";
 
 		if (displayItemLevel)
-			itemName += "(L" + to_string(item->pItemData->dwItemLevel) + ")";
+			itemName += L"(L" + to_wstring(item->pItemData->dwItemLevel) + L")";
 
 		if (App.legacy.showRuneNumbers.toggle.isEnabled && D2COMMON_GetItemText(item->dwTxtFileNo)->nType == 74)
-			itemName = "[" + to_string(item->dwTxtFileNo - 609) + "]" + itemName;
+			itemName = L"[" + to_wstring(item->dwTxtFileNo - 609) + L"]" + itemName;
 	}
 
 	/*Affix (Colors) Color Mod*/
@@ -1284,13 +1400,13 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		//if( (code[0] == 'g' && code[1] == 'l'					) ||
 		//	(code[0] == 's' && code[1] == 'k' && code[2] == 'l' ) )
 		//{
-		//	itemName = "ÿc:" + itemName;
+		//	itemName = L"\xFF" L"c:" + itemName;
 		//}
 		///*Perfect Gems*/
 		//if( (code[0] == 'g' && code[1] == 'p'                   ) ||
 		//	(code[0] == 's' && code[1] == 'k' && code[2] == 'p' ) )
 		//{
-		//	itemName = "ÿc<" + itemName;
+		//	itemName = L"\xFF" L"c<" + itemName;
 		//}
 		/*Ethereal*/
 		if (item->pItemData->dwFlags & 0x400000)
@@ -1299,7 +1415,7 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 			if ((code[0] == 'u') ||
 				(code[0] == 'p' && code[1] == 'a' && code[2] >= 'b'))
 			{
-				itemName = "ÿc;" + itemName;
+				itemName = L"\xFF" L"c;" + itemName;
 			}
 		}
 		/*Runes*/
@@ -1307,33 +1423,33 @@ void Item::OrigGetItemName(UnitAny* item, string& itemName, char* code)
 		{
 			if (code[1] == '0')
 			{
-				itemName = "ÿc0" + itemName;
+				itemName = L"\xFF" L"c0" + itemName;
 			}
 			else if (code[1] == '1')
 			{
 				if (code[2] <= '6')
 				{
-					itemName = "ÿc4" + itemName;
+					itemName = L"\xFF" L"c4" + itemName;
 				}
 				else
 				{
-					itemName = "ÿc8" + itemName;
+					itemName = L"\xFF" L"c8" + itemName;
 				}
 			}
 			else if (code[1] == '2')
 			{
 				if (code[2] <= '2')
 				{
-					itemName = "ÿc8" + itemName;
+					itemName = L"\xFF" L"c8" + itemName;
 				}
 				else
 				{
-					itemName = "ÿc1" + itemName;
+					itemName = L"\xFF" L"c1" + itemName;
 				}
 			}
 			else if (code[1] == '3')
 			{
-				itemName = "ÿc1" + itemName;
+				itemName = L"\xFF" L"c1" + itemName;
 			}
 		}
 	}
@@ -1373,7 +1489,10 @@ bool ShouldShowIlvl(UnitItemInfo* uInfo)
 static UnitAny* lastItem;
 static DWORD previousFlags;
 
-void __stdcall Item::OnProperties(wchar_t* wTxt)
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(dllexport)void __stdcall BHOnProperties(wchar_t* wTxt)
 {
 	UnitAny* pItem = *p_D2CLIENT_SelectedInvItem;
 	UnitItemInfo uInfo;
@@ -1419,16 +1538,16 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 			}
 		}
 
-		string desc = item_desc_cache.Get(&uInfo);
-		if (desc != "") {
+		wstring desc = item_desc_cache.Get(&uInfo);
+		if (desc != L"") {
 			UnitAny* pPlayer = D2CLIENT_GetPlayerUnit();
 			ItemsTxt* itemTxt = D2COMMON_GetItemText(pItem->dwTxtFileNo);
 			if (!pPlayer || !itemTxt) {
 				return;
 			}
-			string itemName = GetItemName(pItem);
+			wstring wItemName = AnsiToWide(GetItemName(pItem));
 			int maxTextLimit = ITEM_TEXT_SIZE_LIMIT;
-			maxTextLimit -= itemName.length() + 3; // color code added later
+			maxTextLimit -= wItemName.length() + 3; // color code added later
 			maxTextLimit -= wcslen(wTxt) + 3; // color code added later
 
 			bool isEthereal = (pItem->pItemData->dwFlags & ITEM_ETHEREAL) > 0;
@@ -1621,7 +1740,7 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 					// TODO: potion damage??
 					//if (D2COMMON_IsMatchingType(pItem, ITEM_TYPE_MISSILE_POT))
 					//{
-					//	
+					//
 					//}
 
 					int minDamage1h = D2COMMON_10823_GetMinDamageStat(pItem, 0);
@@ -1886,7 +2005,7 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 			// Item SpellDesc
 			if (itemTxt->bspelldesc > 0)
 			{
-				wchar_t spellDesc[256];
+				wchar_t spellDesc[1024] = {};
 				D2CLIENT_GetItemDescription_STUB(itemTxt, spellDesc, pItem);
 				maxTextLimit -= wcslen(spellDesc) + 3; // color code added later
 			}
@@ -1905,22 +2024,19 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 			maxTextLimit = maxTextLimit > MAX_ITEM_TEXT_SIZE ? MAX_ITEM_TEXT_SIZE : maxTextLimit;
 
 			bool shouldShowDesc = maxTextLimit > 4;
-			if (desc.length() > maxTextLimit && shouldShowDesc)
+			if (desc.length() > (size_t)maxTextLimit && shouldShowDesc)
 			{
 				desc.resize(maxTextLimit - 4);
-				desc += "...";
+				desc += L"...";
 			}
 
 			if (shouldShowDesc)
 			{
-				static wchar_t wDesc[MAX_ITEM_TEXT_SIZE];
-				auto chars_written = MultiByteToWideChar(CODE_PAGE, MB_PRECOMPOSED, desc.c_str(), -1, wDesc, MAX_ITEM_TEXT_SIZE);
-
 				int aLen = wcslen(wTxt);
 				if (aLen < ITEM_TEXT_SIZE_LIMIT) {
 					swprintf_s(wTxt + aLen, ITEM_TEXT_SIZE_LIMIT - aLen,
 						L"%s%s\n",
-						(chars_written > 0) ? wDesc : L"\377c1Item Description is too long.",
+						desc.c_str(),
 						GetColorCode(TextColor::White).c_str()
 					);
 				}
@@ -1991,7 +2107,7 @@ void __stdcall Item::OnProperties(wchar_t* wTxt)
 	}
 }
 
-BOOL __stdcall Item::OnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStats, int nStat, wchar_t* wOut) {
+__declspec(dllexport) BOOL __stdcall BHOnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStats, int nStat, wchar_t* wOut) {
 	wchar_t newDesc[128];
 
 	// Ignore a max stat, use just a min dmg prop to gen the property string
@@ -2124,7 +2240,7 @@ BOOL __stdcall Item::OnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStat
 	if (newDesc[wcslen(newDesc) - 1] == L'\n')
 		newDesc[wcslen(newDesc) - 1] = L'\0';
 
-	OnPropertyBuild(newDesc, nStat, pItem, 0);
+	BHOnPropertyBuild(newDesc, nStat, pItem, 0);
 	// Beside this add-on the function is almost 1:1 copy of Blizzard's one -->
 	wcscat_s(wOut, 1024, newDesc);
 	wcscat_s(wOut, 1024, L"\n");
@@ -2132,7 +2248,7 @@ BOOL __stdcall Item::OnDamagePropertyBuild(UnitAny* pItem, DamageStats* pDmgStat
 	return TRUE;
 }
 
-void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam)
+__declspec(dllexport) void __stdcall BHOnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, int nStatParam)
 {
 	int nCorruptor = ItemGetCorruptor(pItem, STAT_UNUSED205);
 	BOOL isCorrupted = StatIsCorrupted(nStat, nCorruptor);
@@ -2175,6 +2291,7 @@ void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, i
 		}
 	}
 	if (!(App.lootfilter.alwaysShowStatRanges.value ||
+		(pItem->pItemData && pItem->pItemData->dwFlags & ITEMFLAG_FAKE_COMPENDIUM_TAB) ||
 		GetKeyState(App.lootfilter.showStatRangesPrimary.value) & 0x8000 ||
 		GetKeyState(App.lootfilter.showStatRangesSecondary.value) & 0x8000) ||
 		pItem == nullptr || pItem->dwType != UNIT_ITEM)
@@ -2225,6 +2342,136 @@ void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, i
 			if (all_stat != nullptr) {
 				statMin += all_stat->dwMin;
 				statMax += all_stat->dwMax;
+			}
+
+			// For fake compendium items, replace the rolled value with the range
+			if ((pItem->pItemData->dwFlags & ITEMFLAG_FAKE_COMPENDIUM_TAB) &&
+				(statMin < statMax || max_elem_stat != nullptr))
+			{
+				DWORD nRolledValue = D2COMMON_GetUnitStat(pItem, nStat, nStatParam);
+
+				// Some stats need adjustment to match the displayed value
+				if (nStat == STAT_MAXHP || nStat == STAT_MAXMANA)
+				{
+					nRolledValue /= 256;
+				}
+				else if (nStat == STAT_ENHANCEDDEFENSE ||
+					nStat == STAT_ENHANCEDMAXIMUMDAMAGE || nStat == STAT_ENHANCEDMINIMUMDAMAGE ||
+					nStat == STAT_MINIMUMDAMAGE || nStat == STAT_MAXIMUMDAMAGE ||
+					nStat == STAT_SECONDARYMINIMUMDAMAGE || nStat == STAT_SECONDARYMAXIMUMDAMAGE ||
+					nStat == STAT_MINIMUMTHROWINGDAMAGE || nStat == STAT_MAXIMUMTHROWINGDAMAGE)
+				{
+					StatList* pStatList = D2COMMON_GetStatList(pItem, NULL, 0x40);
+					if (pStatList)
+					{
+						nRolledValue = D2COMMON_GetStatValueFromStatList(pStatList, nStat, 0);
+					}
+				}
+
+				wchar_t szRolledValue[20];
+				swprintf_s(szRolledValue, L"%d", nRolledValue);
+
+				wchar_t* pFound = wcsstr(wOut, szRolledValue);
+				if (pFound)
+				{
+					wchar_t szTemp[256] = {};
+					int prefixLen = (int)(pFound - wOut);
+					int numLen = (int)wcslen(szRolledValue);
+
+					wcsncpy_s(szTemp, wOut, prefixLen);
+
+					if (nStat >= STAT_DEFENSEPERLEVEL && nStat <= STAT_FINDGEMSPERLEVEL)
+					{
+						double fStatMin = statMin / 8.0;
+						double fStatMax = statMax / 8.0;
+						wchar_t fStatMinStr[20];
+						wchar_t fStatMaxStr[20];
+						swprintf_s(fStatMinStr, L"%.20g", fStatMin);
+						swprintf_s(fStatMaxStr, L"%.20g", fStatMax);
+						FixDecimalString(fStatMinStr, 3);
+						FixDecimalString(fStatMaxStr, 3);
+						swprintf_s(szTemp + prefixLen, 256 - prefixLen,
+							L"%s[%s - %s]%s",
+							GetColorCode(TextColor::DarkGreen).c_str(),
+							fStatMinStr, fStatMaxStr,
+							GetColorCode(statColor).c_str());
+						wcscat_s(szTemp, 256, pFound + numLen);
+					}
+					else if (max_elem_stat == nullptr)
+					{
+						swprintf_s(szTemp + prefixLen, 256 - prefixLen,
+							L"%s[%d - %d]%s",
+							GetColorCode(TextColor::DarkGreen).c_str(),
+							statMin, statMax,
+							GetColorCode(statColor).c_str());
+						wcscat_s(szTemp, 256, pFound + numLen);
+					}
+					else
+					{
+						int maxStatMin = max_elem_stat->dwMin;
+						int maxStatMax = max_elem_stat->dwMax;
+
+						DWORD nMaxRolledValue = 0;
+						StatList* pMaxStatList = D2COMMON_GetStatList(pItem, NULL, 0x40);
+						if (pMaxStatList)
+						{
+							DWORD nMaxStatId = 0;
+							if (nStat == STAT_MINIMUMFIREDAMAGE) nMaxStatId = STAT_MAXIMUMFIREDAMAGE;
+							else if (nStat == STAT_MINIMUMCOLDDAMAGE) nMaxStatId = STAT_MAXIMUMCOLDDAMAGE;
+							else if (nStat == STAT_MINIMUMLIGHTNINGDAMAGE) nMaxStatId = STAT_MAXIMUMLIGHTNINGDAMAGE;
+							else if (nStat == STAT_MINIMUMPOISONDAMAGE) nMaxStatId = STAT_MAXIMUMPOISONDAMAGE;
+							else if (nStat == STAT_MINIMUMMAGICALDAMAGE) nMaxStatId = STAT_MAXIMUMMAGICALDAMAGE;
+							else if (nStat == STAT_MINIMUMDAMAGE) nMaxStatId = STAT_MAXIMUMDAMAGE;
+							else if (nStat == STAT_SECONDARYMINIMUMDAMAGE) nMaxStatId = STAT_SECONDARYMAXIMUMDAMAGE;
+
+							if (nMaxStatId != 0)
+							{
+								nMaxRolledValue = D2COMMON_GetStatValueFromStatList(pMaxStatList, nMaxStatId, 0);
+							}
+						}
+
+						wchar_t szMaxRolledValue[20];
+						swprintf_s(szMaxRolledValue, L"%d", nMaxRolledValue);
+
+						wchar_t* pMaxFound = wcsstr(wOut, szMaxRolledValue);
+						int suffixStart = (pMaxFound && pMaxFound > pFound)
+							? (int)(pMaxFound - wOut) + (int)wcslen(szMaxRolledValue)
+							: prefixLen + numLen;
+
+						if (statMin < statMax && maxStatMin < maxStatMax)
+						{
+							swprintf_s(szTemp + prefixLen, 256 - prefixLen,
+								L"%s[%d - %d to %d - %d]%s",
+								GetColorCode(TextColor::DarkGreen).c_str(),
+								statMin, statMax, maxStatMin, maxStatMax,
+								GetColorCode(statColor).c_str());
+						}
+						else if (statMin < statMax)
+						{
+							swprintf_s(szTemp + prefixLen, 256 - prefixLen,
+								L"%s[%d - %d]%s",
+								GetColorCode(TextColor::DarkGreen).c_str(),
+								statMin, statMax,
+								GetColorCode(statColor).c_str());
+						}
+						else
+						{
+							swprintf_s(szTemp + prefixLen, 256 - prefixLen,
+								L"%s[%d to %d - %d]%s",
+								GetColorCode(TextColor::DarkGreen).c_str(),
+								statMin, maxStatMin, maxStatMax,
+								GetColorCode(statColor).c_str());
+						}
+
+						if (suffixStart < (int)wcslen(wOut))
+						{
+							wcscat_s(szTemp, 256, wOut + suffixStart);
+						}
+					}
+
+					wcscpy_s(wOut, 256, szTemp);
+				}
+				break;
 			}
 
 			if (statMin < statMax || max_elem_stat != nullptr) {
@@ -2644,6 +2891,10 @@ void __stdcall Item::OnPropertyBuild(wchar_t* wOut, int nStat, UnitAny* pItem, i
 	}
 }
 
+#ifdef __cplusplus
+}
+#endif
+
 /*
 	Search mod used in MagicPrefix.txt, UniqueItemsTxt, RunesTxt, etc. (index from Properties.txt) by ItemStatCost.txt stat index
 	@param nStatParam - param column for property (skill id etc)
@@ -2948,35 +3199,35 @@ void __declspec(naked) ItemName_Interception()
 }
 
 
-__declspec(naked) void __fastcall GetProperties_Interception()	// 3rd ItemProp func
-{
-	__asm
-	{
-		push eax
-		call Item::OnProperties
-		add esp, 0x808
-		ret 12
-	}
-}
+//__declspec(naked) void __fastcall GetProperties_Interception()	// 3rd ItemProp func
+//{
+//	__asm
+//	{
+//		push eax
+//		call Item::OnProperties
+//		add esp, 0x808
+//		ret 12
+//	}
+//}
 
 /*	Wrapper over D2CLIENT.0x2E04B (1.13d)
 	BOOL __userpurge ITEMS_BuildDamagePropertyDesc@<eax>(DamageStats *pStats@<eax>, int nStat, wchar_t *wOut)
 	Function is pretty simple so I decided to rewrite it.
 	@esp-0x20:	pItem
 */
-void __declspec(naked) GetItemPropertyStringDamage_Interception()	// 1st ItemProp func
-{
-	__asm {
-		push[esp + 8]			// wOut
-		push[esp + 8]			// nStat
-		push eax				// pStats
-		push[esp - 0x20 + 12]	// pItem
-
-		call Item::OnDamagePropertyBuild
-
-		ret 8
-	}
-}
+//void __declspec(naked) GetItemPropertyStringDamage_Interception()	// 1st ItemProp func
+//{
+//	__asm {
+//		push[esp + 8]			// wOut
+//		push[esp + 8]			// nStat
+//		push eax				// pStats
+//		push[esp - 0x20 + 12]	// pItem
+//
+//		call Item::OnDamagePropertyBuild
+//
+//		ret 8
+//	}
+//}
 
 /* Wrapper over D2CLIENT.0x2E06D (1.13d)
 	As far I know this: int __userpurge ITEMS_ParseStats_6FADCE40<eax>(signed __int32 nStat<eax>, wchar_t *wOut<esi>, UnitAny *pItem, StatListEx *pStatList, DWORD nStatParam, DWORD nStatValue, int a7)
@@ -2985,40 +3236,40 @@ void __declspec(naked) GetItemPropertyStringDamage_Interception()	// 1st ItemPro
 	@edi pStatListEx
 	@esp-0x10 seems to always keep pItem *careful*
 */
-void __declspec(naked) GetItemPropertyString_Interception()	// 2nd ItemProp func
-{
-	static DWORD rtn = 0; // if something is stupid but works then it's not stupid!
-	__asm
-	{
-		pop rtn
-		// Firstly generate string using old function
-		call D2CLIENT_ParseStats_J
-		push rtn
-
-		push[esp - 4] // preserve nStatParam
-
-		push eax // Store result
-		mov eax, [esp - 0x10 + 8 + 4] // pItem
-		push ecx
-		push edx
-
-		// Then pass the output to our func
-		push[esp + 12] // nStatParam
-		push eax // pItem
-		push ebx // nStat
-		push esi // wOut
-
-		call Item::OnPropertyBuild
-
-		pop edx
-		pop ecx
-		pop eax
-
-		add esp, 4 // clean nStatParam
-
-		ret
-	}
-}
+//void __declspec(naked) GetItemPropertyString_Interception()	// 2nd ItemProp func
+//{
+//	static DWORD rtn = 0; // if something is stupid but works then it's not stupid!
+//	__asm
+//	{
+//		pop rtn
+//		// Firstly generate string using old function
+//		call D2CLIENT_ParseStats_J
+//		push rtn
+//
+//		push[esp - 4] // preserve nStatParam
+//
+//		push eax // Store result
+//		mov eax, [esp - 0x10 + 8 + 4] // pItem
+//		push ecx
+//		push edx
+//
+//		// Then pass the output to our func
+//		push[esp + 12] // nStatParam
+//		push eax // pItem
+//		push ebx // nStat
+//		push esi // wOut
+//
+//		call Item::OnPropertyBuild
+//
+//		pop edx
+//		pop ecx
+//		pop eax
+//
+//		add esp, 4 // clean nStatParam
+//
+//		ret
+//	}
+//}
 
 void __declspec(naked) ViewInventoryPatch1_ASM()
 {
